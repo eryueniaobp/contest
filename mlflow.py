@@ -58,6 +58,43 @@ logging.basicConfig(level=logging.INFO,
                     filemode='a')
 
 
+class SklearnHelperWithEarlyStopping(object):
+    def __init__(self, clf, seed=0, params=None, eval_set=None,eval_metric='auc' ,early_stopping_rounds = 3 ):
+        # params['random_state'] = seed
+        self.clf = clf(**params)
+        self.eval_set = eval_set
+        self.eval_metric= eval_metric
+        self.early_stopping_rounds = early_stopping_rounds
+
+
+    def predict(self, x):
+        return self.clf.predict(x)
+
+
+    def predict_proba(self, x):
+        """
+
+        :param x:
+        :return:  match  [:,1 ]
+        """
+        proba = self.clf.predict(x)
+        a = [0] * len(proba)
+
+        buf = []
+        for i ,v in enumerate(a):
+            buf.append( [v, proba[i] ])
+
+        return np.array(buf)
+
+
+    def fit(self, x, y):
+        # model = cls.fit(X_train, y_train, early_stopping_rounds=3, eval_set=[(X_vldt, y_vldt)], eval_metric='auc')
+        return self.clf.fit(x, y, early_stopping_rounds = self.early_stopping_rounds , eval_set = self.eval_set ,eval_metric = self.eval_metric )
+
+    def feature_importances(self, x, y):
+        print(self.clf.fit(x, y).feature_importances_)
+
+
 def predict():
     """
     进行预测
@@ -94,23 +131,38 @@ def main():
     len(models) * n_folds
     :return:
     """
-    train_file  = '/home/mi/redplan/red-goldcf-sample-libsvm/100w'
+    train_file  = '/home/mi/redplan/red-goldcf-sample-libsvm/10w'
     test_file ='/home/mi/redplan/red-goldcf-test-sample-libsvm/all'
 
     logging.info(train_file )
     logging.info(test_file)
 
-    mode = "predict"
+    mode = "cv"
     X_train, X_test, y_train, y_test = generate_xy(train_file,test_file,mode)
 
 
+    if mode == 'cv':
+        X_vldt , y_vldt  = X_test, y_test
+    else:
+        X_train ,X_vldt , y_train , y_vldt = train_test_split(X_train, y_train, test_size=0.2)
 
+
+    xgbparam = {
+        'max_depth': 4 ,
+        'learning_rate': 0.3,
+        'n_estimators': 100 ,
+        'silent': False ,
+        'objective': 'binary:logistic' ,
+        'subsample': 0.8
+    }
 
     models = [
-        AdaBoostClassifier(n_estimators=10, learning_rate=1.),  # verbose
+        # GradientBoostingClassifier(n_estimators=100, max_depth=4, loss='deviance', learning_rate=0.3, subsample=0.8,verbose=2),
+        SklearnHelperWithEarlyStopping( XGBRegressor,params=xgbparam, eval_metric='auc',eval_set=[(X_vldt,y_vldt)]),
+        AdaBoostClassifier(base_estimator=DecisionTreeClassifier(max_depth=6), n_estimators=10, learning_rate=1.),  # verbose
         ExtraTreesClassifier(n_estimators=100, max_depth=6 ,verbose=1) ,
         RandomForestClassifier(n_estimators=100, max_depth= 6,verbose=1) ,
-        GradientBoostingClassifier(n_estimators= 10 , max_depth= 3 , loss='deviance',  learning_rate= 0.2 , subsample=0.8,verbose=2) ,
+
 
         LogisticRegression(penalty='l2', C=1.0 ,solver='liblinear',verbose=0),
     ]
@@ -136,7 +188,7 @@ def main():
 
     model = cls.fit(S_train,y_train)
 
-    logging.info("level TWO train ok")
+    logging.info("level TWO train ok ")
 
     y_pred = model.predict(S_test)
 
@@ -146,7 +198,6 @@ def main():
     if mode == 'cv':
         auclog =   "Final auc {0}".format( roc_auc_score(y_test,y_pred))
         logging.info( auclog )
-
         print auclog
     else:
         logging.info("predict done")
