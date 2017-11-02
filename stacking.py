@@ -42,6 +42,7 @@ from sklearn.cross_validation import KFold
 from sklearn.cross_validation import StratifiedKFold
 from sklearn.metrics import mean_absolute_error
 from sklearn.metrics import accuracy_score
+import logging
 
 
 # -------------------------------------------------------------------------------
@@ -327,7 +328,7 @@ def stacking(models, X_train, y_train, X_test, regression=True,
             y_te = y_train[te_index]
 
             # Fit 1-st level model
-            model = model.fit(X_tr, transformer(y_tr, func=transform_target))
+            model.fit(X_tr, transformer(y_tr, func=transform_target))
             # Predict out-of-fold part of train set
             S_train[te_index, model_counter] = transformer(model.predict_proba(X_te)[:,1], func=transform_pred)
             # Predict full test set
