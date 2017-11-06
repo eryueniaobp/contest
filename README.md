@@ -1,7 +1,7 @@
 # contest
 ## 流程
 特征工程： 交叉特征 + 统计比率      
-baseline: gbdt    
+*baseline*: 交叉特征 + 统计比率 + gbdt    
 单模型调优:    
 模型融合:  stacking 4-folds .    
 
