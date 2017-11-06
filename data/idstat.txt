@@ -1,0 +1,12 @@
+name:n1    10000    0.2
+name:n2    10000    0.3
+age:2    10000  0.1
+age:1    10000  0.2
+gender:1    10000   0.1
+gender:2    10000   0.2
+age_gender:1_1    10000 0.11
+age_gender:1_2    10000 0.12
+hobby:game  10000   0.112
+hobby:game2  10000   0.113
+hobby:game1  10000   0.114
+hobby:game3  10000   0.115
