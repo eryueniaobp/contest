@@ -40,14 +40,14 @@ class Feature(object):
         self.start_feaid = start
         self.end_feaid  = start + len(self.idmap)
         return self.end_feaid
-    def transform(self, feastr,sep =':'):
+    def transform(self, prefix, feastr,sep =':'):
         """
         具体的特征转换成  libsvm 格式.  {id}:{val}
         :param feastr:
         :return  -1 skip the feastr.
         """
 
-        prefix, feaval = re.split(sep, feastr, maxsplit=1)
+        # prefix, feaval = re.split(sep, feastr, maxsplit=1)
         if prefix != self.prefix:
             return -1
 
@@ -57,14 +57,14 @@ class Feature(object):
         else:
             return -1
 
-    def tryAdd(self, feastr, sep=':'):
+    def tryAdd(self, prefix,  feastr, sep=':'):
         """
 
         :param feastr:
         :param sep:
         :return:  True: 添加成功 False: 添加失败
         """
-        prefix , feaval = re.split(sep, feastr, maxsplit=2)
+        # prefix , feaval = re.split(sep, feastr, maxsplit=2)
 
         if prefix == self.prefix:
             if feastr in self.idmap:
@@ -116,33 +116,38 @@ class StatFeature(Feature):
         else:
             self.end_feaid = start +1
         return self.end_feaid
-    def transform(self, feastr ,sep=":"):
+    def transform(self, prefix, feastr ,sep=":"):
         """
         具体的特征转换成  libsvm 格式.  {id}:{val}
         :param feastr:
         :return  -1 skip the feastr.
         """
 
-        prefix, feaval = re.split(sep, feastr, maxsplit=1)
+        # prefix, feaval = re.split(sep, feastr, maxsplit=1)
         if prefix != self.prefix:
             return -1
 
         if feastr in self.valmap:
             if self.expand:
-                return "{0}:{1}".format(self.idmap[feaval] + self.start_feaid -1 , self.valmap[feastr])
+                month , feaval = re.split(sep,feastr,maxsplit=1)
+                if feaval in self.idmap:
+                    return "{0}:{1}".format(self.idmap[feaval] + self.start_feaid -1 , self.valmap[feastr])
+                else:
+                    return -1
+
             else:
                 return "{0}:{1}".format(self.start_feaid ,  self.valmap[feastr])
         else:
             return -1
 
-    def tryAdd(self, feastr, val , sep=':'):
+    def tryAdd(self, prefix, feastr, val , sep=':'):
         """
 
         :param feastr:
         :param sep:
         :return:  True: 添加成功 False: 添加失败
         """
-        prefix, feaval = re.split(sep, feastr, maxsplit=2)
+        # prefix, feaval = re.split(sep, feastr, maxsplit=2)
 
         if prefix == self.prefix:
             if feastr in self.valmap:
@@ -150,7 +155,10 @@ class StatFeature(Feature):
             else:
                 self.valmap[feastr] = val
                 if self.expand:
-                    self.idmap[feaval] = len(self.idmap) +1
+                    month, feaval = re.split(sep, feastr, maxsplit=1)
+
+                    if feaval not in self.idmap:
+                        self.idmap[feaval] = len(self.idmap) +1
             return True
         else:
             return False
@@ -191,7 +199,7 @@ class SuperStatFeature(Feature):
         return self.end_feaid
 
 
-    def transform(self, feastr_list, sep=":"):
+    def transform(self, prefix, feastr_list, sep=":"):
         """
         具体的特征转换成  libsvm 格式.  {id}:{val}
 
@@ -204,12 +212,12 @@ class SuperStatFeature(Feature):
 
         if type(feastr_list) != list:
             return -1
+        if prefix != self.prefix:
+            return -1
         buf = []
         for feastr in feastr_list:
-            prefix, feaval = re.split(sep, feastr, maxsplit=1)
-            if prefix == self.prefix:
-                if feastr in self.valmap:
-                    buf.append( float(self.valmap[feastr]))
+            if feastr in self.valmap:
+                buf.append( float(self.valmap[feastr]))
 
         buf = sorted(buf, reverse=True)
 
@@ -218,7 +226,6 @@ class SuperStatFeature(Feature):
         i = 0
         for v in buf[:self.cnt]:
             strbuf.append("{0}:{1}".format( self.start_feaid + i , v  ))
-
             i +=1
 
         if len(strbuf) == 0:
@@ -227,14 +234,14 @@ class SuperStatFeature(Feature):
             return ' '.join(strbuf)
 
 
-    def tryAdd(self, feastr, val, sep=':'):
+    def tryAdd(self, prefix,  feastr, val, sep=':'):
         """
 
         :param feastr:
         :param sep:
         :return:  True: 添加成功 False: 添加失败
         """
-        prefix, feaval = re.split(sep, feastr, maxsplit=2)
+        # prefix, feaval = re.split(sep, feastr, maxsplit=2)
 
         if prefix == self.prefix:
             if feastr in self.valmap:
