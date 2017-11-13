@@ -1,14 +1,6 @@
 # encoding=utf-8
 """
-@author : pengalg  
-特征工程 
-朴素特征
-交叉特征
-朴素的统计特征 (collapse and expand ,two style) 
-Top-N的统计特征 (superstat)  
-
-baseline
-
+@author : pengalg
 """
 import re
 import numpy as  np
@@ -137,7 +129,7 @@ class StatFeature(Feature):
 
         if feastr in self.valmap:
             if self.expand:
-                return "{0}:{1}".format(self.idmap[feastr] + self.start_feaid -1 , self.valmap[feastr])
+                return "{0}:{1}".format(self.idmap[feaval] + self.start_feaid -1 , self.valmap[feastr])
             else:
                 return "{0}:{1}".format(self.start_feaid ,  self.valmap[feastr])
         else:
@@ -158,7 +150,7 @@ class StatFeature(Feature):
             else:
                 self.valmap[feastr] = val
                 if self.expand:
-                    self.idmap[feastr] = len(self.idmap) +1
+                    self.idmap[feaval] = len(self.idmap) +1
             return True
         else:
             return False
