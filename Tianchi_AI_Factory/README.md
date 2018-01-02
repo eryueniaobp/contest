@@ -6,6 +6,14 @@
 
 最后特征维度： 7945 
 
+## 最新说明：  Rank 100左右  
+特征： tool离散化 + 去掉重复列+去掉 空值特别多的列 
+
+模型：  Pipeline = Scaler() + SelectKBest() + SVM   
+       Pipeline = lightGBM  (GridSearchCV 寻参数)  
+       
+       两个pipeline结果，进行 平均，最后分数0.0415附近 
+       
 ## Scaler 
 尝试过两种Scaler, StandardScaler and MaxAbsScaler  ,在svr和nn中，用上scaler效果好一些   ；linear regression用了 scaler反倒效果差一些
 
