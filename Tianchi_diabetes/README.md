@@ -9,7 +9,15 @@
 kfold -mean  : 
 kfold-nest-mean : 
 
+lgb+ xgb kfold-mean 能稳定部分预测值
+
+nn方法无效 
+
 # 特征构造 
 
 PolynomialFeature, InteractiveFeature均无效 
 不少人采用手工构造的 几个专门特征，据说能提升，没有专门测试
+
+# Trick
+
+手工验值，B榜有运气成分
