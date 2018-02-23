@@ -1,193 +1,162 @@
-# encoding=utf-8
-"""
-@author : pengalg
-"""
-
-
-import sys
-reload(sys)
-sys.setdefaultencoding('utf8')
-
-import logging,datetime
-
-logging.basicConfig(level=logging.DEBUG,
-                    format='%(asctime)s %(filename)s[line:%(lineno)d] %(levelname)s %(message)s',
-                    datefmt='%a, %d %b %Y %H:%M:%S',
-                    filename='prop.log',
-                    filemode='a')
-
-
+#encoding=utf-8
 
 import pandas as pd
-import numpy as np
-from fbprophet import Prophet
 
+from fbprophet import Prophet
+import sys
 import matplotlib.pyplot as plt
 from fbprophet.diagnostics import cross_validation
+import datetime
+import numpy as np
 
-def make_holidays():
-    """
-    将所有的空缺都算成holidays,避免重复规避.
+def shiftdw(cur, step):
+    t = ( cur + step  )%7 
+    if t == 0:
+        return 7
+    if t < 0:
+        return t + 7 
+    else:
+        return t
 
-
-    future中的也要考虑.
-    :return:
-    """
-    traindf = pd.read_csv('train_20171215.txt', sep='\t', header=0)
-    #make sample
-    traindf = traindf[['date', 'day_of_week', 'cnt']].groupby(['date', 'day_of_week']).count().reset_index()
-
-
-    testdf = pd.read_csv('test_A_20171225.txt',sep='\t',header=0)
-    testdf['cnt'] = 0
-
-    df = pd.concat([traindf, testdf.iloc[1:, :]])
-
-
-    dvals = df.values
-    prev = 2
-
-    date = 1
-
-    p = 0
-
-    buf = []
-    while p < len(dvals):
-        _, day_of_week, cnt = dvals[p]
-        target = prev % 7 + 1
-        if day_of_week == target:
-            p += 1
-        else:
-            buf.append(date)  #no register , so it 's  holiday
-        prev = target
-        date +=1
-    holiday_df = pd.DataFrame({'holiday': 'off', 'ds': buf})
-
-    holiday_df['ds'] = holiday_df['ds'].apply(lambda x: pd.DateOffset(days=x) + pd.to_datetime('2017-02-07', format='%Y-%m-%d'))
-    return holiday_df
-
-def prepare_data():
+    
+def read_train_df():
     df = pd.read_csv('train_20171215.txt', sep='\t', header=0)
-    medvals = np.ravel(df[['day_of_week', 'cnt']].groupby('day_of_week').median().values)
+    print df['cnt'].dtype
 
-    df = df[['date', 'day_of_week', 'cnt']].groupby(['date', 'day_of_week']).sum().reset_index()
-    with open('train_20171215.full.txt', 'w') as f:
-        dvals = df.values
-        prev = 2
+    traindfsum = df.groupby(['date','day_of_week'])['cnt'].sum().reset_index()
 
-        date = 1
+    medvals = np.ravel(df.groupby('day_of_week')['cnt'].median().values)
 
 
-        p = 0
-        while  p < len(dvals):
-            _ ,day_of_week, cnt = dvals[p]
+    print medvals
+
+    testdf = pd.read_csv('test_A_20171225.txt' ,sep='\t',header=0)
+
+    testdf['cnt'] = 0
+    testdf = testdf.iloc[1: , : ]
+
+    dfsum =  pd.concat([traindfsum , testdf]).reset_index()
+
+    hashdate = []
+    rldate = []
+    cnt = []
+    day_of_week  = []
+    
+    prdate = -1 
+    prdw = -1 
+    for row in dfsum.itertuples():
+        if prdate == -1:
+            hashdate.append(row.date)
+            rldate.append(row.date)
+            cnt.append( row.cnt )
+            day_of_week.append(row.day_of_week)
+        else:
+            prdw = shiftdw(prdw, 1)
+            while prdw != row.day_of_week:
+                rldate.append(rldate[-1] + 1)
+                hashdate.append(-1)
 
 
-            target = prev%7 +1
-            if day_of_week == target:
-                f.write("{0}\t{1}\t{2}\n".format(date,target,cnt))
-                p +=1
-            else:
-                cnt = medvals[target-1]
-                cnt = 0  # todo : check if 0 is better.
-                logging.info('dayofweek = {0}  fillmiss = {1}'.format(target, cnt))
-                f.write("{0}\t{1}\t{2}\n".format(date,target,cnt))
-            prev = target
-            date += 1
-
-    return  'train_20171215.full.txt'
-
-pd.set_option('display.precision', 1)
-pd.set_option('display.float_format', lambda x: '%.1f' % x)
-"""
-span = 250:
-cutoff
-2019-05-05   363945.3
-2019-09-07   863657.8
-Name: error, dtype: float64
-
-提交后的答案为 87万 ；这个说鸣  越往后，越不好预测? ???  观察下trend的情况?
-
-"""
-def post_data():
-    pass
-def main():
-    logging.info("begin")
-
-    path = prepare_data()
-
-    holidays = make_holidays()
-    df = pd.read_csv(path,sep='\t',header=None)
+                cnt.append(medvals[prdw - 1 ] )
 
 
-    df.columns = ['ds','day_of_week', 'y']
+                day_of_week.append(prdw)
+                prdw = shiftdw(prdw,1)
+            rldate.append(rldate[-1] + 1) 
+            hashdate.append(row.date)
+            cnt.append(row.cnt)
+            day_of_week.append(row.day_of_week)
+
+        prdate = row.date
+        prdw = row.day_of_week
 
 
-    df['ds']  =  df['ds'].apply(lambda  x : pd.DateOffset(days = x ) + pd.to_datetime('2017-02-07', format='%Y-%m-%d'))
+    dfsum = pd.DataFrame({'date': hashdate, 'rldate': rldate, 'day_of_week': day_of_week, 'cnt':cnt})
+
+    dfsum.to_csv('train.csv', index=False)
+    return dfsum, traindfsum['date'].max()
+def amplify(df):
+    dis2lastwork = []
+    dis2lastholiday = []
+
+    dis2nextwork = []
+    dis2nextholiday = []
+
+    prdate = 0 
+    prholiday = 0 
+
+    for row in df.itertuples():
+        dis2lastwork += [ row.rldate  - prdate ]
+        dis2lastholiday  += [row.rldate - prholiday ] 
+        if row.date > -1:
+            prdate = row.rldate
+        else:
+            prholiday = row.rldate
+
+    
+    nrdate = df['rldate'].max()
+    nrholiday =df['rldate'].max() 
+    rdf = df.sort_values(by='rldate', ascending=False)
+    for row in rdf.itertuples():
+        dis2nextwork += [ nrdate - row.rldate  ]
+        dis2nextholiday += [nrholiday -  row.rldate ] 
+        if row.date > -1:
+            nrdate = row.rldate
+        else:
+            nrholiday = row.rldate
+    
+    dis2nextwork.reverse()
+    dis2nextholiday.reverse()
+    df['lastwork'] = dis2lastwork
+    df['lastholiday'] = dis2lastholiday
+    df['nextwork'] = dis2nextwork 
+    df['nextholiday'] = dis2nextholiday
+    return df
+if __name__  == '__main__':
+    zero_day = '2013-01-01'
+    df, traindate =read_train_df()
+    df = amplify(df)
+    lentrain = df[df['date'] == traindate].index[0] + 1
+
+    print df.iloc[lentrain-1 , :]
+
+    # raw_input('\t\tPress')
+
+    print 'lentrain = ' , lentrain
+    # raw_input('\t\tPress any ')
+    df['ds']  =  df['rldate'].apply(lambda  x : pd.DateOffset(days = x ) + pd.to_datetime(zero_day, format='%Y-%m-%d'))
+    df['y' ] = df['cnt']
+
+    holidays = df[df['date'] == -1][['ds']]
+    holidays['holiday'] = 'off'
+    holidays['lower_window'] = -1
+    holidays['upper_window'] = 1
+    print df.columns
+
 
     m = Prophet(changepoint_prior_scale=0.05, holidays=holidays)
     m.add_seasonality(name='monthly', period=30.5, fourier_order=5)
 
-    print df.columns
-    # m.add_regressor('day_of_week')
-    m.fit(df)
+    m.add_regressor('lastwork')
+    m.add_regressor('lastholiday')
+    m.add_regressor('nextwork')
+    m.add_regressor('nextholiday')
 
-    # span = 250
-    # cv = cross_validation(m , horizon='{0} days'.format(span))
-    #
-    #
-    # print cv['cutoff'].unique()
-    #
-    # cv['error'] = 1./span * (cv['yhat'] - cv['y'] ) ** 2
-    #
-    # print cv.groupby('cutoff')['error'].sum()
-    #
-    #
-    #
-    #
-    # return
-
+    m.fit(df.iloc[:lentrain, :]) # train
     future = m.make_future_dataframe(freq='D', periods=500)
-    # future['day_of_week']  = future['ds'].apply(lambda  x :  x.dayofweek)
-    forecast = m.predict(future)
+    future  =  pd.merge( future, df , on ='ds')
+    print future.head() ,future.tail()
 
-    # m.plot(forecast)
+    forecast =  m.predict(future)  # type:pd.DataFrame  ds ,yhat
+
     m.plot_components(forecast)
     m.plot(forecast)
 
-    yhat = forecast['yhat'].tail(501).values
-
-    print len(yhat)
+    testdf = df.iloc[lentrain-1:, :]
+    testdf = pd.merge(testdf,  forecast, on='ds')
 
     day = datetime.datetime.now().strftime('%Y%m%d')
 
-    # pd.DataFrame ({'ds': [ i%7 +1 for i in range(3, 3+501 ) ]  , 'yhat':  yhat}).to_csv('{day}.csv'.format(day=day),sep='\t', header=False,index=False)
-
-
-    test = pd.read_csv('test_A_20171225.txt', sep='\t',header=0)
-    dvals = test['day_of_week'].values
-
-    p = 0
-    ds = [ i%7 +1 for i in range(3, 3+501 ) ]
-
-    buf = []
-    for dw in dvals:
-        while ds[p] != dw:
-            # print 'miss hole'
-            p +=1
-
-        buf.append(yhat[p])
-
-    pd.DataFrame({'ds': test['date'] , 'yhat': buf }).to_csv('{day}.monthly.csv'.format(day=day),sep='\t', header=False,index=False)
-
-
-
+    print testdf[testdf['date'] != -1][['yhat']].describe()
+    testdf[testdf['date'] != -1][['date', 'yhat']].to_csv('{day}.reg.more.csv'.format(day=day),sep='\t', header=False,index=False)
     plt.show()
-
-
-
-
-if __name__ =='__main__':
-    #build()
-    # predict()
-    main()
