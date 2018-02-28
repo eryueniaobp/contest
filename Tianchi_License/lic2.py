@@ -170,8 +170,19 @@ def hand_holidays(df):
     df['holiday'] = df['ds'].apply(lambda d:  check_holiday(d) )
     df['holiday_name'] = df['ds'].apply(lambda d : check_holiday_name(d))
     return df
+def read_testA_df():
+    testdf = pd.read_csv('./data/test_A_20171225.txt', sep='\t', header=0)
+    ans = pd.read_csv('./data/answer_A_20180225.txt',sep='\t',header=None)
+    ans.columns = ['date', 'cnt']
+
+    testdf = pd.merge(testdf, ans, on='date')
+
+    print testdf.head()
+
+    return testdf.iloc[1:, :]
+
 def read_train_df():
-    df = pd.read_csv('train_20171215.txt', sep='\t', header=0)
+    df = pd.read_csv('./data/train_20171215.txt', sep='\t', header=0)
     print df['cnt'].dtype
 
     traindfsum = df.groupby(['date','day_of_week'])['cnt'].sum().reset_index()
@@ -187,12 +198,15 @@ def read_train_df():
 
     # sys.exit(1)
 
-    testdf = pd.read_csv('test_A_20171225.txt' ,sep='\t',header=0)
+
+    dfA = read_testA_df()
+
+    testdf = pd.read_csv('./data/test_B_20171225.txt' ,sep='\t',header=0)
 
     testdf['cnt'] = 0
-    testdf = testdf.iloc[1: , : ]
+    # testdf = testdf.iloc[1: , : ]
 
-    dfsum =  pd.concat([traindfsum , testdf]).reset_index()
+    dfsum =  pd.concat([traindfsum , dfA,  testdf]).reset_index()
 
     hashdate = []
     rldate = []
@@ -231,7 +245,7 @@ def read_train_df():
     dfsum = pd.DataFrame({'date': hashdate, 'rldate': rldate, 'day_of_week': day_of_week, 'cnt':cnt})
 
     dfsum.to_csv('train.csv', index=False)
-    return dfsum, traindfsum['date'].max()
+    return dfsum, dfA['date'].max() # traindfsum['date'].max()
 def amplify(df):
     dis2lastwork = []
     dis2lastholiday = []
@@ -273,6 +287,7 @@ if __name__  == '__main__':
     zero_day = '2013-01-01'
     df, traindate =read_train_df()
     df['ds'] = df['rldate'].apply(lambda x: pd.DateOffset(days=x) + pd.to_datetime(zero_day, format='%Y-%m-%d'))
+
     df = hand_holidays(df)
 
     df.to_csv('train.csv',index=False)
@@ -331,18 +346,19 @@ if __name__  == '__main__':
 
     forecast =  m.predict(future)  # type:pd.DataFrame  ds ,yhat
 
-    m.plot_components(forecast)
-    m.plot(forecast)
+    #m.plot_components(forecast)
+    #m.plot(forecast)
 
-    testdf = df.iloc[lentrain-1:, :]
+    testdf = df.iloc[lentrain:, :] # testB lentrain: is ok .!
     testdf = pd.merge(testdf,  forecast, on='ds')
 
     testdf['yhat'] =  testdf['yhat'].clip_lower(0)
 
-    day = datetime.datetime.now().strftime('%Y%m%d')
+    #day = datetime.datetime.now().strftime('%Y%m%d')
+    day = 20180226
 
     print testdf[testdf['date'] != -1][['yhat']].describe()
-    testdf[testdf['date'] != -1][['date', 'yhat']].to_csv('{day}.reg.{add}.csv'.format(day=day,add=add_reg),sep='\t', header=False,index=False)
-    testdf[testdf['date'] != -1][['date', 'ds', 'day_of_week', 'yhat', 'holiday','holiday_name']].to_csv('{day}.withdate.{add}.csv'.format(day=day,add=add_reg), sep='\t', header=False,
+    testdf[testdf['date'] != -1][['date', 'yhat']].to_csv('./submit/{day}.reg.{add}.csv'.format(day=day,add=add_reg),sep='\t', header=False,index=False)
+    testdf[testdf['date'] != -1][['date', 'ds', 'day_of_week', 'yhat', 'holiday','holiday_name']].to_csv('./submit/{day}.withdate.{add}.csv'.format(day=day,add=add_reg), sep='\t', header=False,
                                                           index=False)
-    plt.show()
+    #plt.show()
