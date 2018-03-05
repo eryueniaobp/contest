@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from fbprophet.diagnostics import cross_validation
 import datetime
 import numpy as np
+from pandas.tseries.offsets import *
 
 
 def shiftdw(cur, step):
@@ -110,9 +111,33 @@ def hand_holidays(df):
 
     ]
 
-    def expand(buf):
+    def expand(buf, fore_check, fore=0, lag=[]):
         nb = {}
         for day, span, tag in buf:
+
+            if fore_check:
+                nday = datetime.datetime.strptime(day, '%Y-%m-%d') + datetime.timedelta(days=span + fore -1 )
+                nday = nday.strftime('%Y-%m-%d')
+                nb[nday] = tag+'_fore'
+            if len(lag) > 0:
+                for i  in lag:
+                    nday = datetime.datetime.strptime(day, '%Y-%m-%d') + datetime.timedelta(days=-i )
+                    nday = nday.strftime('%Y-%m-%d')
+                    nb[nday] = tag+'_lag{}'.format(i)
+            """
+            wee
+            """
+
+            nday = datetime.datetime.strptime(day, '%Y-%m-%d')
+            lagsun = (nday -Week(weekday=0)).strftime('%Y-%m-%d')
+            lagsat = (nday - Week(weekday=6)).strftime('%Y-%m-%d')
+
+            nb[lagsun] = tag +'_lagsun'
+            nb[lagsat] = tag +'_lagsat'
+
+
+
+
             if span == 1:
                 # nb += [day]
                 nb[day] = tag
@@ -126,8 +151,8 @@ def hand_holidays(df):
 
         return nb
 
-    hdays = expand(hdays)
-    wdays = expand(work_day)
+    hdays = expand(hdays, True, 1, [1,2] )
+    wdays = expand(work_day, False )
 
     """
     df['ds'] is ok
@@ -296,7 +321,7 @@ def  select_brand(df, brands):
 def main():
     zero_day = '2013-01-01'
     df, traindate = read_train_df()
-    df['ds'] = df['rldate'].apply(lambda x: pd.DateOffset(days=x) + pd.to_datetime(zero_day, format='%Y-%m-%d'))
+    df['ds'] = df['rldate'].apply(lambda x: pd.DateOffset(days=x-1) + pd.to_datetime(zero_day, format='%Y-%m-%d'))
 
     df = hand_holidays(df)
 
@@ -314,8 +339,8 @@ def main():
     holidays = df[df['holiday'] == 1][['ds', 'holiday_name']]
     holidays.columns = ['ds', 'holiday']
     # holidays['holiday'] = 'off'
-    holidays['lower_window'] = -1
-    holidays['upper_window'] = 1
+    #holidays['lower_window'] = -1
+    #holidays['upper_window'] = 1
     print df.columns
 
     testA = pd.read_csv('./data/fusai_test_A_20180227.txt', sep='\t', header=0)
@@ -324,6 +349,11 @@ def main():
 
     tag =  0
     for brand,  brand_df  in  select_brand(df, brands):
+
+
+        brand_df.to_csv('brand.{brand}.withdate.csv'.format(brand=brand),index=False)
+
+        # continue
         m = Prophet(changepoint_prior_scale=0.05, holidays=holidays)
 
         m.add_seasonality(name='monthly', period=30.5, fourier_order=5)
@@ -348,6 +378,7 @@ def main():
 
         testdf['brand'] = brand
 
+        testdf.to_csv('pred.brand.{}.csv'.format(brand),index=False)
         # print brand
         if tag == 0:
             testdf = testdf[['date', 'brand', 'yhat']]
@@ -362,10 +393,10 @@ def main():
 
         testA = pd.merge( testA, testdf , on =['date','brand'] ,how='left') #注意这里的顺序 如何调节/
 
-        # m.plot_components(forecast)
-        # m.plot(forecast, ylabel='brand-{}'.format(brand))
-        #
-        # plt.show()
+        #m.plot_components(forecast)
+        #m.plot(forecast, ylabel='brand-{}'.format(brand))
+
+        #plt.show()
 
 
 
