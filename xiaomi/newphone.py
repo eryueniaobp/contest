@@ -111,9 +111,17 @@ model = build_functional_compiled_model2()
 dataset = build_dataset()
 dataset = dataset.shuffle(buffer_size=1024).batch(64).repeat()
 # model.fit({'feature': X, 'feature2': X2}, y, batch_size=20, epochs=2)
-model.fit(dataset, steps_per_epoch=100, epochs=2)
 
-## predict part .
+model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
+    filepath='./model/weights',
+    save_weights_only=True,
+    monitor='loss',
+    mode='min',
+    save_best_only=True)
+model.fit(dataset, steps_per_epoch=100, epochs=2, callbacks=[model_checkpoint_callback])
+
+model.load_weights('./model/weights')
+
 test_dataset  = build_dataset()
 test_dataset = test_dataset.map(lambda x, y : x )
 test_dataset = test_dataset.batch(10)
