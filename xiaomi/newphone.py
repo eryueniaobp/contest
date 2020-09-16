@@ -21,7 +21,9 @@ def parse_line(line):
     features = dict(zip(CSV_COLUMNS, columns))
     # features['appid'] = tf.strings.to_number(tf.strings.split(features['appid'], sep=' '),tf.int32)
     appid = tf.strings.to_number(tf.strings.split(features['appid'], sep=' '),tf.int32)
-    appid_weight = tf.strings.to_number(tf.strings.split(features['appid_weight'], sep=' '),tf.float32)
+    appid_size = 4
+    appid_weight = tf.reshape(tf.strings.to_number(tf.strings.split(features['appid_weight'], sep=' '), tf.float32), [appid_size, 1])
+
 
     vitality_seq = tf.strings.to_number(tf.strings.split(features['vitality_seq'], sep=' '),tf.int32)
 
@@ -32,6 +34,7 @@ def parse_line(line):
     # appid = tf.keras.preprocessing.sequence.pad_sequences(appid, maxlen= app_size, value=0)
     features['appid'] = appid
     features['vitality_seq'] = vitality_seq
+    features['appid_weight'] = appid_weight
 
     # if  :  # only slice if longer
     #     appid = tf.slice(appid, begin=[0], size=[3])
@@ -64,7 +67,7 @@ def build_functional_compiled_model2():
     a = tf.keras.layers.Input(shape=(1,) , name='a')
     b = tf.keras.layers.Input(shape=(1,) , name='b')
     appid = tf.keras.layers.Input(shape=(appid_size,) , name='appid')
-    appid_weight = tf.keras.layers.Input(shape=(appid_size,) , name='appid_weight')
+    appid_weight = tf.keras.layers.Input(shape=(appid_size, 1 ) , name='appid_weight')
 
 
     vitality = tf.keras.layers.Input(shape=(1,) , name='vitality')
@@ -80,10 +83,16 @@ def build_functional_compiled_model2():
 
     embedding_appid= tf.keras.layers.Embedding(100, 10)(appid)
 
-    # weighted_embedding_appid = tf.keras.layers.multiply([appid_weight, embedding_appid ])
+    # transpose_appid_weight = tf.reshape(appid_weight, [4,1])
 
-    attention_phone_appid = tf.keras.layers.Attention()([embedding_phone, embedding_appid]) # 1, |app_embeding size|
-    attention_vitality_appid = tf.keras.layers.Attention()([embedding_vitality, embedding_appid]) # 1, |app_embedding_size|
+    # print(tf.shape(transpose_appid_weight))
+    app_id_weight2 = tf.tile(appid_weight, tf.constant([1, 1, 10], tf.int32))
+
+
+    weighted_embedding_appid = tf.keras.layers.multiply([app_id_weight2, embedding_appid ])
+
+    attention_phone_appid = tf.keras.layers.Attention()([embedding_phone, weighted_embedding_appid]) # 1, |app_embeding size|
+    attention_vitality_appid = tf.keras.layers.Attention()([embedding_vitality, weighted_embedding_appid]) # 1, |app_embedding_size|
 
     # flatten_phone_appid = tf.keras.layers.Flatten()(attention_phone_appid)
     # flatten_vitality_appid = tf.keras.layers.Flatten()(attention_vitality_appid)
@@ -107,27 +116,28 @@ def build_functional_compiled_model2():
     model.compile(loss='binary_crossentropy', optimizer='adam')
     model.summary()
     return model
-model = build_functional_compiled_model2()
-dataset = build_dataset()
-dataset = dataset.shuffle(buffer_size=1024).batch(64).repeat()
-# model.fit({'feature': X, 'feature2': X2}, y, batch_size=20, epochs=2)
+if __name__ == '__main__':
+    model = build_functional_compiled_model2()
+    dataset = build_dataset()
+    dataset = dataset.shuffle(buffer_size=1024).batch(64).repeat()
+    # model.fit({'feature': X, 'feature2': X2}, y, batch_size=20, epochs=2)
 
-model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
-    filepath='./model/weights',
-    save_weights_only=True,
-    monitor='loss',
-    mode='min',
-    save_best_only=True)
-model.fit(dataset, steps_per_epoch=100, epochs=2, callbacks=[model_checkpoint_callback])
+    model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
+        filepath='./model/weights',
+        save_weights_only=True,
+        monitor='loss',
+        mode='min',
+        save_best_only=True)
+    model.fit(dataset, steps_per_epoch=100, epochs=2, callbacks=[model_checkpoint_callback])
 
-model.load_weights('./model/weights')
+    model.load_weights('./model/weights')
 
-test_dataset  = build_dataset()
-test_dataset = test_dataset.map(lambda x, y : x )
-test_dataset = test_dataset.batch(10)
-for test_sample in test_dataset:
-    # print(test_sample)
-    result = model.predict(test_sample)
-    print(result)
+    test_dataset  = build_dataset()
+    test_dataset = test_dataset.map(lambda x, y : x )
+    test_dataset = test_dataset.batch(10)
+    for test_sample in test_dataset:
+        # print(test_sample)
+        result = model.predict(test_sample)
+        print(result)
 
 
