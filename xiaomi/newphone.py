@@ -113,6 +113,11 @@ def build_functional_complied_model_with_lstm():
     embedding_phone = tf.keras.layers.Embedding(100, 10)(phone)
     flatted_phone = tf.keras.layers.Flatten()(embedding_phone)
 
+    vitality_days = 5
+    vitality_seq = tf.keras.layers.Input(shape=(vitality_days, ), name='vitality_seq')
+    # shape  : (batch, vitality_days, 10 )
+    embedding_vitality = tf.keras.layers.Embedding(3, 10)(vitality_seq)
+
     appid_size = 4
     days = 2
     # 30: 30 days
@@ -120,13 +125,14 @@ def build_functional_complied_model_with_lstm():
 
     #output shape: (batch,  units=100)
     appid_context_value = tf.keras.layers.LSTM(units=100, return_sequences=False, return_state=False)(appid_count)
+    vitality_context_value = tf.keras.layers.LSTM(units=30, return_sequences=False, return_state=False)(embedding_vitality)
 
-    context = tf.keras.layers.concatenate([flatted_phone, appid_context_value])
+    context = tf.keras.layers.concatenate([flatted_phone, appid_context_value, vitality_context_value])
 
     fusion_context = tf.keras.layers.Dense(10, activation='relu', name='context_layer')(context)
     output = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)(fusion_context)
 
-    model = tf.keras.models.Model(inputs=[appid_count,  phone], outputs=[output])
+    model = tf.keras.models.Model(inputs=[appid_count, vitality_seq,  phone], outputs=[output])
     model.compile(loss='binary_crossentropy', optimizer='adam')
     model.summary()
 
@@ -188,13 +194,13 @@ def build_functional_compiled_model2():
 
     output = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)(context)
     model = tf.keras.models.Model(inputs=[a, b,appid, appid_weight,  vitality,  phone, vitality_seq ], outputs=[output])
-    model.compile(loss='binary_crossentropy', optimizer='adam')
+     model.compile(loss='binary_crossentropy', optimizer='adam')
     model.summary()
     return model
 if __name__ == '__main__':
     # model = build_functional_compiled_model2()
-    # model = build_functional_complied_model_with_lstm()
-    model = build_functional_complied_model_with_cnn()
+    model = build_functional_complied_model_with_lstm()
+    # model = build_functional_complied_model_with_cnn()
     dataset = build_dataset()
 
     # dataset = dataset.shuffle(buffer_size=1024).padded_batch(1, padded_shapes=({'appid': 4 }, None))
