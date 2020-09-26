@@ -53,7 +53,7 @@ def parse_train_base_and_app_rate(line):
                     ["unk" for _ in range(90)]
     columns = tf.io.decode_csv(line, record_defaults=deafult_value, field_delim=' ')
     features = dict(zip(Constant.train_base_feature_vatality_header, columns[:17]))
-    features["vatality"] = columns[17:47]
+    features["vatality"] = columns[17:47][::-1]
     features["app_rate"] = columns[47:453]
     features["base_rate"] = columns[453:468]
     features["app_count"] = columns[468]
