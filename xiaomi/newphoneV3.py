@@ -248,7 +248,7 @@ def parse_train_base_and_app_rate(line):
 
     features['app_all'] = appid_count
     labels = features.pop("label")
-    features.pop("uid")
+    # features.pop("uid")
     return features, labels
 
 
@@ -530,7 +530,9 @@ if __name__ == '__main__':
 
         test_dataset = test_dataset.batch(64)
         for x, _  in test_dataset:
-            y = model.predict(x)
-            print(len(y))
+            # print(x)
+            y = model.predict(x)[:, 0]
+            print(list(zip(x['uid'].numpy(), y)))
+            # print(len(y))
             print('=====' * 8 )
-            input("press any key..")
+            # input("press any key..")
