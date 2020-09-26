@@ -244,7 +244,7 @@ def parse_train_base_and_app_rate(line):
     appid_count = tf.stack(
         [appid0, appid1, appid2, appid3, appid4, appid5, appid6, appid7, appid8, appid9, appid10, appid11, appid12,
          appid13, appid14, appid15, appid16, appid17, appid18, appid19, appid20, appid21, appid22, appid23, appid24,
-         appid25, appid26, appid27, appid28, appid29], axis=0)
+         appid25, appid26, appid27, appid28, appid29][::-1], axis=0)
 
     features['app_all'] = appid_count
     labels = features.pop("label")
@@ -532,7 +532,8 @@ if __name__ == '__main__':
         for x, _  in test_dataset:
             # print(x)
             y = model.predict(x)[:, 0]
+            # print(y)
             print(list(zip(x['uid'].numpy(), y)))
-            # print(len(y))
-            print('=====' * 8 )
+            # # print(len(y))
+            # print('=====' * 8 )
             # input("press any key..")
