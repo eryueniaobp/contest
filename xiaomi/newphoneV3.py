@@ -514,4 +514,23 @@ if __name__ == '__main__':
         model.fit(dataset, validation_data=valid_dataset,
                   class_weight= class_weight,
                   steps_per_epoch=2, epochs=2, callbacks=[model_checkpoint_callback, csvlogger])
+    else:
+        if args.model == 'lstm':
+            model = build_functional_complied_model_with_lstm()
+            model_path = './lstm_model/weights'
+            csvfile = './lstm.csv'
+        elif args.model == 'cnn':
+            model = build_functional_complied_model_with_cnn()
+            model_path = './cnn_model/weights'
+            csvfile = './cnn.csv'
+        else:
+            raise NotImplementedError('check your model')
+        model.load_weights(model_path)
+        test_dataset = build_dataset("./valid_data")
 
+        test_dataset = test_dataset.batch(64)
+        for x, _  in test_dataset:
+            y = model.predict(x)
+            print(len(y))
+            print('=====' * 8 )
+            input("press any key..")
