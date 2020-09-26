@@ -513,7 +513,7 @@ if __name__ == '__main__':
         class_weight = {1: Constant.nagtive_count / Constant.positive_count, 0: 1.0}
         model.fit(dataset, validation_data=valid_dataset,
                   class_weight= class_weight,
-                  steps_per_epoch=2, epochs=2, callbacks=[model_checkpoint_callback, csvlogger])
+                  steps_per_epoch=1000, epochs=20, callbacks=[model_checkpoint_callback, csvlogger])
     else:
         if args.model == 'lstm':
             model = build_functional_complied_model_with_lstm()
