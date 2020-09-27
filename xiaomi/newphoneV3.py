@@ -269,54 +269,20 @@ def build_dataset(files, infer=False):
         # return dataset
 
 def build_functional_complied_model_with_cnn():
-    brand_input = tf.keras.Input(shape=(1,), name="brand")
-    model_name_input = tf.keras.Input(shape=(1,), name="modelname")
-    version_input = tf.keras.Input(shape=(1,), name="version")
-    total_use_days_input = tf.keras.Input(shape=(1,), name="total_use_days")
-    user_age_input = tf.keras.Input(shape=(1,), name="user_age")
-    user_sex_input = tf.keras.Input(shape=(1,), name="user_sex")
-    # age_input = tf.keras.Input(shape=(1,), name="age")
-    user_degree_input = tf.keras.Input(shape=(1,), name="user_degree")
-    resident_province_input = tf.keras.Input(shape=(1,), name="resident_province")
-    resident_city_input = tf.keras.Input(shape=(1,), name="resident_city")
-    resident_city_type_input = tf.keras.Input(shape=(1,), name="resident_city_type")
-    phone_log_input = tf.keras.Input(shape=(1,), name="phone_log_model")
-    phone_raw_input = tf.keras.Input(shape=(1,), name="phone_raw_model")
-    sale_channel_1_input = tf.keras.Input(shape=(1,), name="sale_channel_1")
-    sale_channel_2_input = tf.keras.Input(shape=(1,), name="sale_channel_2")
+    brand_input, model_name_input, version_input, total_use_days_input, user_age_input, user_sex_input, \
+    user_degree_input, resident_province_input, resident_city_input, resident_city_type_input, phone_log_input, \
+    phone_raw_input, sale_channel_1_input, sale_channel_2_input = build_base_input()
 
-    brand_embedding = tf.keras.layers.Embedding(Constant.brand_count, 10)(brand_input)
-    model_name_embedding = tf.keras.layers.Embedding(Constant.model_name_count, 10)(model_name_input)
-    version_embedding = tf.keras.layers.Embedding(Constant.version_count, 10)(version_input)
-    user_age_embedding = tf.keras.layers.Embedding(Constant.user_age_count, 10)(user_age_input)
-    user_sex_embedding = tf.keras.layers.Embedding(Constant.user_sex_count, 10)(user_sex_input)
-    user_degree_embedding = tf.keras.layers.Embedding(Constant.user_degree_count, 10)(user_degree_input)
-    resident_province_embedding = tf.keras.layers.Embedding(Constant.resident_province_count, 10)(
-        resident_province_input)
-    resident_city_embedding = tf.keras.layers.Embedding(Constant.resident_city_count, 10)(resident_city_input)
-    resident_city_type_embedding = tf.keras.layers.Embedding(Constant.resident_city_type_count, 10)(
-        resident_city_type_input)
-    phone_log_embedding = tf.keras.layers.Embedding(Constant.phone_log_model_count, 10)(phone_log_input)
-    phone_raw_embedding = tf.keras.layers.Embedding(Constant.phone_raw_model_count, 10)(phone_raw_input)
-    sale_channel_1_embedding = tf.keras.layers.Embedding(Constant.sale_channel_1_count, 10)(sale_channel_1_input)
-    sale_channel_2_embedding = tf.keras.layers.Embedding(Constant.sale_channel_2_count, 10)(sale_channel_2_input)
-
-    total_use_days_input_embedding = tf.keras.layers.Embedding(5000, 100)(total_use_days_input)
-
-    brand_flatten = tf.keras.layers.Flatten()(brand_embedding)
-    model_name_flatten = tf.keras.layers.Flatten()(model_name_embedding)
-    version_flatten = tf.keras.layers.Flatten()(version_embedding)
-    user_age_flatten = tf.keras.layers.Flatten()(user_age_embedding)
-    user_sex_flatten = tf.keras.layers.Flatten()(user_sex_embedding)
-    user_degree_flatten = tf.keras.layers.Flatten()(user_degree_embedding)
-    resident_province_flatten = tf.keras.layers.Flatten()(resident_province_embedding)
-    resident_city_flatten = tf.keras.layers.Flatten()(resident_city_embedding)
-    resident_city_type_flatten = tf.keras.layers.Flatten()(resident_city_type_embedding)
-    phone_log_flatten = tf.keras.layers.Flatten()(phone_log_embedding)
-    phone_raw_flatten = tf.keras.layers.Flatten()(phone_raw_embedding)
-    sale_channel_1_flatten = tf.keras.layers.Flatten()(sale_channel_1_embedding)
-    sale_channel_2_flatten = tf.keras.layers.Flatten()(sale_channel_2_embedding)
-    total_use_days_input_flatten = tf.keras.layers.Flatten()(total_use_days_input_embedding)
+    brand_flatten, model_name_flatten, version_flatten, \
+    total_use_days_input, user_age_flatten, user_sex_flatten, \
+    user_degree_flatten, resident_province_flatten, resident_city_flatten, resident_city_type_flatten, \
+    phone_log_flatten, \
+    phone_raw_flatten, sale_channel_1_flatten, sale_channel_2_flatten, \
+    total_use_days_input_flatten = build_base_features(brand_input, model_name_input, version_input,
+                                                       total_use_days_input, user_age_input, user_sex_input, \
+                                                       user_degree_input, resident_province_input, resident_city_input,
+                                                       resident_city_type_input, phone_log_input, \
+                                                       phone_raw_input, sale_channel_1_input, sale_channel_2_input)
 
     vitality_days = 30
     vitality_dimension = 10
@@ -354,7 +320,7 @@ def build_functional_complied_model_with_cnn():
         phone_log_flatten,
         phone_raw_flatten, sale_channel_1_flatten, sale_channel_2_flatten,
         total_use_days_input_flatten,
-        appid_context_value, vitality_context_value])
+        appid_context_value, vitality_context_value], name='cnn_context_layer')
 
     fusion_context = tf.keras.layers.Dense(32, activation='relu', name='context_layer')(context)
     output = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)(fusion_context)
@@ -364,21 +330,14 @@ def build_functional_complied_model_with_cnn():
         user_degree_input, resident_province_input, resident_city_input, resident_city_type_input, phone_log_input,
         phone_raw_input, sale_channel_1_input, sale_channel_2_input,
         vitality_seq, app_all
-    ], outputs=[output])
+    ], outputs=[output], name = 'cnn_phone')
     model.compile(loss='binary_crossentropy', optimizer='adam',
                   metrics=['accuracy', tf.keras.metrics.Precision(), tf.keras.metrics.Recall(),
                            tf.keras.metrics.AUC()])
     model.summary()
 
     return model
-
-def build_functional_complied_model_with_lstm():
-    """
-    使用app 次数或者时间 来构造 序列型特征，输入到lstm进行处理.
-    假设有200个app  ; lstm可以同时使用 次数和时间，可以使用log(x)进行简单归一化
-    :return:
-    """
-
+def build_base_input():
     brand_input = tf.keras.Input(shape=(1,), name="brand")
     model_name_input = tf.keras.Input(shape=(1,), name="modelname")
     version_input = tf.keras.Input(shape=(1,), name="version")
@@ -394,6 +353,13 @@ def build_functional_complied_model_with_lstm():
     phone_raw_input = tf.keras.Input(shape=(1,), name="phone_raw_model")
     sale_channel_1_input = tf.keras.Input(shape=(1,), name="sale_channel_1")
     sale_channel_2_input = tf.keras.Input(shape=(1,), name="sale_channel_2")
+    return brand_input, model_name_input, version_input, total_use_days_input, user_age_input, user_sex_input, \
+        user_degree_input, resident_province_input, resident_city_input, resident_city_type_input, phone_log_input , \
+        phone_raw_input, sale_channel_1_input, sale_channel_2_input
+
+def build_base_features(brand_input, model_name_input, version_input, total_use_days_input, user_age_input, user_sex_input,
+        user_degree_input, resident_province_input, resident_city_input, resident_city_type_input, phone_log_input,
+        phone_raw_input, sale_channel_1_input, sale_channel_2_input):
 
     brand_embedding = tf.keras.layers.Embedding(Constant.brand_count, 10)(brand_input)
     model_name_embedding = tf.keras.layers.Embedding(Constant.model_name_count, 10)(model_name_input)
@@ -428,6 +394,34 @@ def build_functional_complied_model_with_lstm():
     sale_channel_2_flatten = tf.keras.layers.Flatten()(sale_channel_2_embedding)
     total_use_days_input_flatten = tf.keras.layers.Flatten()(total_use_days_input_embedding)
 
+    return brand_flatten, model_name_flatten, version_flatten, \
+        total_use_days_input, user_age_flatten, user_sex_flatten,  \
+        user_degree_flatten, resident_province_flatten, resident_city_flatten, resident_city_type_flatten, \
+        phone_log_flatten, \
+        phone_raw_flatten, sale_channel_1_flatten, sale_channel_2_flatten, \
+        total_use_days_input_flatten
+
+def build_functional_complied_model_with_lstm():
+    """
+    使用app 次数或者时间 来构造 序列型特征，输入到lstm进行处理.
+    假设有200个app  ; lstm可以同时使用 次数和时间，可以使用log(x)进行简单归一化
+    :return:
+    """
+
+    brand_input, model_name_input, version_input, total_use_days_input, user_age_input, user_sex_input, \
+    user_degree_input, resident_province_input, resident_city_input, resident_city_type_input, phone_log_input, \
+    phone_raw_input, sale_channel_1_input, sale_channel_2_input = build_base_input()
+
+
+    brand_flatten, model_name_flatten, version_flatten, \
+    total_use_days_input, user_age_flatten, user_sex_flatten, \
+    user_degree_flatten, resident_province_flatten, resident_city_flatten, resident_city_type_flatten, \
+    phone_log_flatten, \
+    phone_raw_flatten, sale_channel_1_flatten, sale_channel_2_flatten, \
+    total_use_days_input_flatten = build_base_features(brand_input, model_name_input, version_input, total_use_days_input, user_age_input, user_sex_input, \
+    user_degree_input, resident_province_input, resident_city_input, resident_city_type_input, phone_log_input, \
+    phone_raw_input, sale_channel_1_input, sale_channel_2_input)
+
     vitality_days = 30
     vitality_seq = tf.keras.layers.Input(shape=(vitality_days, ), name='vatality')
     # shape  : (batch, vitality_days, 10 )
@@ -451,7 +445,7 @@ def build_functional_complied_model_with_lstm():
         phone_log_flatten,
         phone_raw_flatten, sale_channel_1_flatten, sale_channel_2_flatten,
         total_use_days_input_flatten,
-        appid_context_value, vitality_context_value])
+        appid_context_value, vitality_context_value], name='lstm_context_layer')
 
     fusion_context = tf.keras.layers.Dense(32, activation='relu', name='context_layer')(context)
     output = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)(fusion_context)
@@ -461,21 +455,141 @@ def build_functional_complied_model_with_lstm():
         user_degree_input, resident_province_input, resident_city_input, resident_city_type_input, phone_log_input,
         phone_raw_input, sale_channel_1_input, sale_channel_2_input,
         vitality_seq,  app_all
-    ], outputs=[output])
+    ], outputs=[output], name='phone_lstm')
     model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy', tf.keras.metrics.Precision(), tf.keras.metrics.Recall(), tf.keras.metrics.AUC()])
     model.summary()
 
     return model
+
+def build_functional_complied_model_with_moe():
+    brand_input, model_name_input, version_input, total_use_days_input, user_age_input, user_sex_input, \
+    user_degree_input, resident_province_input, resident_city_input, resident_city_type_input, phone_log_input, \
+    phone_raw_input, sale_channel_1_input, sale_channel_2_input = build_base_input()
+
+    brand_flatten, model_name_flatten, version_flatten, \
+    total_use_days_input, user_age_flatten, user_sex_flatten, \
+    user_degree_flatten, resident_province_flatten, resident_city_flatten, resident_city_type_flatten, \
+    phone_log_flatten, \
+    phone_raw_flatten, sale_channel_1_flatten, sale_channel_2_flatten, \
+    total_use_days_input_flatten = build_base_features(brand_input, model_name_input, version_input,
+                                                       total_use_days_input, user_age_input, user_sex_input, \
+                                                       user_degree_input, resident_province_input, resident_city_input,
+                                                       resident_city_type_input, phone_log_input, \
+                                                       phone_raw_input, sale_channel_1_input, sale_channel_2_input)
+
+
+
+
+
+
+    vitality_days = 30
+    vitality_dimension = 10
+    vitality_seq = tf.keras.layers.Input(shape=(vitality_days,), name='vatality')
+    # shape  : (batch, vitality_days, 10 )
+    embedding_vitality = tf.keras.layers.Embedding(3, vitality_dimension)(vitality_seq)
+
+
+
+    appid_size = 203
+    days = 30
+    app_dimension = appid_size * 3
+
+    # 30: 30 days
+    app_all = tf.keras.layers.Input(shape=(days,app_dimension), name='app_all')
+
+    """ lstm part """
+    vitality_context_value = tf.keras.layers.LSTM(units=32, return_sequences=False, return_state=False)(
+        embedding_vitality)
+
+    # output shape: (batch,  units=100)
+    appid_context_value = tf.keras.layers.LSTM(units=32, return_sequences=False, return_state=False)(app_all)
+
+    context = tf.keras.layers.concatenate([
+        brand_flatten, model_name_flatten, version_flatten,
+        total_use_days_input, user_age_flatten, user_sex_flatten,
+        user_degree_flatten, resident_province_flatten, resident_city_flatten, resident_city_type_flatten,
+        phone_log_flatten,
+        phone_raw_flatten, sale_channel_1_flatten, sale_channel_2_flatten,
+        total_use_days_input_flatten,
+        appid_context_value, vitality_context_value], name='lstm_context_layer')
+
+    lstm_fusion_context = tf.keras.layers.Dense(32, activation='relu', name='lstm_fusion_layer')(context)
+
+
+
+    """cnn part """
+
+    vitality_conv1d = tf.keras.layers.Conv1D(filters=32, kernel_size=3, activation='relu',
+                                             input_shape=(vitality_days, vitality_dimension))(embedding_vitality)
+    vitality_pooling = tf.keras.layers.MaxPooling1D(pool_size=2, strides=1, padding='valid')(vitality_conv1d)
+    vitality_context_value = tf.keras.layers.Flatten()(vitality_pooling)
+
+    appid_conv1d = tf.keras.layers.Conv1D(filters=32, kernel_size=3, activation='relu',
+                                          input_shape=(days, app_dimension))(app_all)
+
+    appid_pooling = tf.keras.layers.MaxPooling1D(pool_size=2, strides=1, padding='valid')(appid_conv1d)
+    appid_context_value = tf.keras.layers.Flatten()(appid_pooling)
+
+    context = tf.keras.layers.concatenate([
+        brand_flatten, model_name_flatten, version_flatten,
+        total_use_days_input, user_age_flatten, user_sex_flatten,
+        user_degree_flatten, resident_province_flatten, resident_city_flatten, resident_city_type_flatten,
+        phone_log_flatten,
+        phone_raw_flatten, sale_channel_1_flatten, sale_channel_2_flatten,
+        total_use_days_input_flatten,
+        appid_context_value, vitality_context_value], name='cnn_context_layer')
+
+    cnn_fusion_context = tf.keras.layers.Dense(32, activation='relu', name='cnn_fusion_context')(context)
+
+    cnn_output = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)(cnn_fusion_context)
+    lstm_output = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)(lstm_fusion_context)
+
+
+    # gate_context = tf.keras.layers.concatenate([lstm_fusion_context, cnn_fusion_context], name='moe_context')
+
+    gate_context = tf.keras.layers.concatenate([
+        brand_flatten, model_name_flatten, version_flatten,
+        total_use_days_input, user_age_flatten, user_sex_flatten,
+        user_degree_flatten, resident_province_flatten, resident_city_flatten, resident_city_type_flatten,
+        phone_log_flatten,
+        phone_raw_flatten, sale_channel_1_flatten, sale_channel_2_flatten,
+        total_use_days_input_flatten], name='gate_context')
+    gate = tf.keras.layers.Dense(2, 'softmax')(gate_context)
+
+    def merge_mode(branches):
+        g, o1, o2 = branches
+        # I'd have liked to write
+        # return o1 * K.transpose(g[:, 0]) + o2 * K.transpose(g[:, 1])
+        # but it doesn't work, and I don't know enough Keras to solve it
+        return tf.transpose(tf.transpose(o1) * g[:, 0] + tf.transpose(o2) * g[:, 1])
+
+    output = merge_mode((gate, lstm_output, cnn_output))
+
+    model = tf.keras.models.Model(inputs=[
+        brand_input, model_name_input, version_input, total_use_days_input, user_age_input, user_sex_input,
+        user_degree_input, resident_province_input, resident_city_input, resident_city_type_input, phone_log_input,
+        phone_raw_input, sale_channel_1_input, sale_channel_2_input,
+        vitality_seq, app_all
+    ], outputs= output, name='moe_model')
+
+    model.compile(loss='binary_crossentropy', optimizer='adam',
+                  metrics=['accuracy', tf.keras.metrics.Precision(), tf.keras.metrics.Recall(),
+                           tf.keras.metrics.AUC()])
+    model.summary()
+    return model
+
+
+
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     subparser = parser.add_subparsers(dest='task')
     trainparser = subparser.add_parser('train')
-    trainparser.add_argument('--model', choices=['lstm', 'cnn'], required=True)
+    trainparser.add_argument('--model', choices=['lstm', 'cnn','moe'], required=True)
 
     testparser = subparser.add_parser('test')
-    testparser.add_argument('--model', choices=['lstm', 'cnn'], required=True)
+    testparser.add_argument('--model', choices=['lstm', 'cnn', 'moe'], required=True)
 
     args = parser.parse_args()
     if args.task == 'train':
@@ -487,6 +601,11 @@ if __name__ == '__main__':
             model = build_functional_complied_model_with_cnn()
             model_path = './cnn_model/weights'
             csvfile = './cnn.csv'
+        elif args.model == 'moe':
+            model = build_functional_complied_model_with_moe()
+            model_path = './moe_model/weights'
+            csvfile = './moe.csv'
+
         else:
             raise NotImplementedError('check your model')
 
@@ -519,21 +638,35 @@ if __name__ == '__main__':
             model = build_functional_complied_model_with_lstm()
             model_path = './lstm_model/weights'
             csvfile = './lstm.csv'
+            submit = './submit.lstm.csv'
         elif args.model == 'cnn':
             model = build_functional_complied_model_with_cnn()
             model_path = './cnn_model/weights'
             csvfile = './cnn.csv'
+            submit = './submit.cnn.csv'
+        elif args.model == 'moe':
+            model = build_functional_complied_model_with_moe()
+            model_path = './moe_model/weights'
+            csvfile = './moe.csv'
+            submit = './submit.moe.csv'
         else:
             raise NotImplementedError('check your model')
         model.load_weights(model_path)
-        test_dataset = build_dataset("./valid_data")
-
+        test_dataset = build_dataset("./test_data.ok")
+        of = open(submit,'w')
+        of.write('uid,label\n')
         test_dataset = test_dataset.batch(64)
+        buf = []
         for x, _  in test_dataset:
             # print(x)
             y = model.predict(x)[:, 0]
-            # print(y)
-            print(list(zip(x['uid'].numpy(), y)))
+            print(y)
+
+            buf = list(zip(x['uid'].numpy(), y))
+            buf = ['{},{}\n'.format(int(i), 1 if j >0.5 else 0) for i ,j in buf]
+            of.writelines(buf)
             # # print(len(y))
             # print('=====' * 8 )
-            # input("press any key..")
+            # input("press any  key..")
+        of.flush()
+        of.close()
