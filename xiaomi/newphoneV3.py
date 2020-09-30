@@ -7,7 +7,7 @@ import tensorflow as tf
 import numpy as np
 import argparse
 
-
+from FMLayer import FM
 class Constant:
     prefix = "/home/baiyun/PycharmProjects/miwin/data_store/feature"
     nagtive_count = 392972.0
@@ -448,7 +448,34 @@ def build_functional_complied_model_with_lstm():
         appid_context_value, vitality_context_value], name='lstm_context_layer')
 
     fusion_context = tf.keras.layers.Dense(32, activation='relu', name='context_layer')(context)
-    output = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)(fusion_context)
+    dnn_logits = tf.keras.layers.Dense(1, activation='relu')(fusion_context)
+
+    """
+    FM begins
+    """
+    fm_model_embedding = tf.keras.layers.Embedding(Constant.model_name_count, 10)(model_name_input)
+    fm_city_embedding = tf.keras.layers.Embedding(Constant.resident_city_count, 10)(resident_city_input)
+    fm_total_use_days_input_embedding = tf.keras.layers.Embedding(5000, 10)(total_use_days_input)
+    fm_brand_embedding = tf.keras.layers.Embedding(Constant.brand_count, 10)(brand_input)
+
+    fm_user_age_embedding = tf.keras.layers.Embedding(Constant.user_age_count, 10)(user_age_input)
+    fm_user_sex_embedding = tf.keras.layers.Embedding(Constant.user_sex_count, 10)(user_sex_input)
+    fm_user_degree_embedding = tf.keras.layers.Embedding(Constant.user_degree_count, 10)(user_degree_input)
+
+    fields_inputs = tf.keras.layers.Concatenate(axis=1)([fm_user_age_embedding,
+                                                         fm_user_sex_embedding,
+                                                         fm_user_degree_embedding,
+                                                         fm_brand_embedding,
+                                                         fm_model_embedding,
+                                                         fm_city_embedding,
+                                                         fm_total_use_days_input_embedding])
+    tf.print(fields_inputs.shape)
+    fm_logits = FM()(fields_inputs)
+    """
+    FM ends
+    """
+    logits = tf.keras.layers.add([dnn_logits, fm_logits])
+    output = tf.keras.layers.Dense(1, activation='sigmoid')(logits)
 
     model = tf.keras.models.Model(inputs=[
         brand_input, model_name_input, version_input, total_use_days_input, user_age_input, user_sex_input,
@@ -632,7 +659,7 @@ if __name__ == '__main__':
         class_weight = {1: Constant.nagtive_count / Constant.positive_count, 0: 1.0}
         model.fit(dataset, validation_data=valid_dataset,
                   class_weight= class_weight,
-                  steps_per_epoch=1000, epochs=20, callbacks=[model_checkpoint_callback, csvlogger])
+                  steps_per_epoch=1000, epochs=10, callbacks=[model_checkpoint_callback, csvlogger])
     else:
         if args.model == 'lstm':
             model = build_functional_complied_model_with_lstm()
