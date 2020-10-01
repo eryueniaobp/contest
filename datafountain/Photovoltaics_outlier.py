@@ -2,6 +2,7 @@ from sklearn.ensemble import IsolationForest
 import numpy as np
 import pandas as pd
 import tqdm
+pd.set_option('display.max_columns',None)
 # X = np.array([[-1, -1], [-2, -1], [-3, -2], [0, 0], [-20, 50], [3, 5]])
 # clf = IsolationForest(n_estimators=10, warm_start=True)
 # clf.fit(X)  # fit 10 trees
@@ -40,6 +41,47 @@ def build_label(df, ys):
 
     return buf
 
+def build_block(df, row):
+    p1 = df[(df['termNum'] == row['termNum']) & (df['distNum'] == row['distNum']) & (df['blockNum'] == row['blockNum']) & (
+            df['powerNum'] == 1)].sort_values(by='nsTime').reset_index()
+    p2 = df[(df['termNum'] == row['termNum']) & (df['distNum'] == row['distNum']) & (df['blockNum'] == row['blockNum']) & (
+                df['powerNum'] == 2)].sort_values(by='nsTime').reset_index()
+    p3 = df[(df['termNum'] == row['termNum']) & (df['distNum'] == row['distNum']) & (df['blockNum'] == row['blockNum']) & (
+                df['powerNum'] == 3)].sort_values(by='nsTime').reset_index()
+    import itertools
+    # assert p1.shape[0] == p2.shape[0] and p1.shape[0] == p3.shape[0], '{} {} {} '.format(p1.shape, p2.shape, p3.shape)
+    # bdf = pd.concat([p1, p2, p3], axis=1, join='inner')
+    if p1.shape[0] == p2.shape[0] and p1.shape[0] == p3.shape[0]:
+        bdf = pd.concat([p1, p2, p3], axis=1, join='inner')[['powerNum', 'termNum', 'distNum', 'blockNum', 'Power']]
+
+        bdf.columns = list(itertools.chain.from_iterable([['{}0'.format(i), '{}1'.format(i), '{}2'.format(i)] for i in
+                                                          ['powerNum', 'termNum', 'distNum', 'blockNum', 'Power']]))
+
+        bdf['PowerAvg'] = (bdf['Power0'] + bdf['Power1'] + bdf['Power2']) / 3.0
+
+        return 1, bdf[['termNum0', 'distNum0', 'blockNum0', 'PowerAvg']]
+
+    else:
+        p12 = pd.merge(p1, p2, suffixes=('_1', '_2'), how='outer', on='Time')
+        p123 = pd.merge(p12, p3, how='outer', on='Time')
+
+        cols = list(itertools.chain.from_iterable([['{}'.format(i), '{}_1'.format(i), '{}_2'.format(i)] for i in
+                                                      ['powerNum', 'termNum', 'distNum', 'blockNum', 'Power']]))
+        bdf = p123[cols + ['Time']]
+
+        # print(bdf.shape, p1.shape, p2.shape, p3.shape, bdf.columns)
+        # input("press any key ... ")
+
+
+
+        bdf.columns = list(itertools.chain.from_iterable([['{}0'.format(i), '{}1'.format(i), '{}2'.format(i)] for i in
+                                                      ['powerNum', 'termNum', 'distNum', 'blockNum', 'Power']])) + ['Time']
+
+        bdf['PowerAvg'] = (bdf['Power0'] + bdf['Power1'] + bdf['Power2'])/3.0
+
+        return 0, bdf[['termNum0', 'distNum0', 'blockNum0', 'Time', 'PowerAvg']]
+
+
 
 
 df = pd.read_csv('data/dataset.csv',header=0)
@@ -48,17 +90,24 @@ df['nsTime'] = pd.to_datetime(df['Time'])
 print(df.dtypes)
 # input("Press any key to continue..")
 units = df.groupby(['termNum', 'distNum', 'blockNum', 'powerNum']).count().reset_index()
-
+na_value = 0
 for idx, row in tqdm.tqdm(units.iterrows()):
     subdf = df[(df['termNum'] == row['termNum']) & (df['distNum'] == row['distNum']) & (df['blockNum'] == row['blockNum']) & (
-                df['powerNum'] == row['powerNum'])]
+                df['powerNum'] == row['powerNum'])].sort_values(by='nsTime').reset_index()
     # print(row[['termNum', 'distNum', 'blockNum', 'powerNum']], '\n' , subdf.shape, subdf.dtypes)
-    subdf = subdf.sort_values(by='nsTime')
-    subdf['ma7'] = subdf['Power'].rolling(window=7).mean().fillna(0)
-    subdf['ma21'] = subdf['Power'].rolling(window=21).mean().fillna(0)
+    # subdf = subdf
 
-    subdf['26_ema'] = subdf['Power'].ewm(span=26).mean().fillna(0)
-    subdf['12_ema'] = subdf['Power'].ewm(span=12).mean().fillna(0)
+    same, block_df = build_block(df, row)
+
+    block_df['block_ma7'] = block_df['PowerAvg'].rolling(window=7).mean().fillna(na_value)
+    block_df['block_ma21'] = block_df['PowerAvg'].rolling(window=21).mean().fillna(na_value)
+
+
+    subdf['ma7'] = subdf['Power'].rolling(window=7).mean().fillna(na_value)
+    subdf['ma21'] = subdf['Power'].rolling(window=21).mean().fillna(na_value)
+
+    subdf['26_ema'] = subdf['Power'].ewm(span=26).mean().fillna(na_value)
+    subdf['12_ema'] = subdf['Power'].ewm(span=12).mean().fillna(na_value)
 
     subdf['macd'] = subdf['12_ema'] - subdf['26_ema']
 
@@ -68,18 +117,60 @@ for idx, row in tqdm.tqdm(units.iterrows()):
     rolling_mean = subdf['Power'].rolling(window).mean()
     rolling_std = subdf['Power'].rolling(window).std()
 
-    subdf['BHigh'] = (rolling_mean + (rolling_std * no_of_std)).fillna(0)
-    subdf['SuperHigh'] = (rolling_mean + (rolling_std * 3)).fillna(0)
-    subdf['LHigh'] = (rolling_mean - (rolling_std * no_of_std)).fillna(0)
+    subdf['BHigh'] = (rolling_mean + (rolling_std * no_of_std)).fillna(na_value)
+    subdf['SuperHigh'] = (rolling_mean + (rolling_std * 3)).fillna(na_value)
+    subdf['LHigh'] = (rolling_mean - (rolling_std * no_of_std)).fillna(na_value)
 
-    subdf['ema'] = subdf['Power'].ewm(com=0.5).mean()
+    subdf['ema'] = subdf['Power'].ewm(com=0.5).mean().fillna(na_value)
+
+    print(idx, ' is na = ' , subdf['ema'].isna().sum())
+    # input("Press any ..")
 
     subdf['momentum'] = subdf['Power'] - 1
+    subdf['power_by_ma7'] = subdf['Power']/(subdf['ma7'] + 0.001)
+    subdf['power_by_ma21'] = subdf['Power']/(subdf['ma21'] + 0.001)
+    subdf['power_by_ema'] = subdf['Power']/(subdf['ema'] + 0.001)
+
+    # print(subdf[['power_by_ma7', 'power_by_ma21', 'power_by_ema']].describe())
+    # input("Press nay ")
+
+    if same == 1:
+
+        subdf = pd.concat([subdf.reset_index(), block_df.reset_index()], axis=1).fillna(0)
+    else:
+        subdf2 = pd.merge(subdf, block_df, how='left', on='Time').fillna(0)
+        # assert
+        # print('subdf2 = ', subdf2.shape)
+        # print('subdf = ', subdf.shape)
+        # print('blockdf = ', block_df.shape)
+        # input("Press any key.. ")
+        subdf =subdf2
+    # print(subdf.shape)
 
     # print(subdf.head())
 
+    # input("Press any key..")
 
-    train_dataset = subdf[['Power', 'ma7', 'ma21', 'macd', 'ema', 'BHigh', 'LHigh']]
+    subdf['power_by_avg'] = subdf['Power']/(subdf['PowerAvg'] + 0.001)
+    subdf['power_by_block_ma7'] = subdf['Power']/(subdf['block_ma7'] + 0.001)
+    subdf['power_by_block_ma21'] = subdf['Power']/(subdf['block_ma21'] + 0.001)
+
+
+    # train_dataset = subdf[['Power', 'ma7', 'ma21', 'macd', 'ema', 'BHigh', 'LHigh',
+    #                        'power_by_ma7', 'power_by_ma21', 'power_by_ema',
+    #                        'power_by_avg', 'power_by_block_ma7', 'power_by_block_ma21'
+    #                        ]]
+
+    train_dataset = subdf[[
+                            # 'Power', 'ma7', 'ma21', 'macd', 'ema', 'BHigh', 'LHigh',
+                           'power_by_ma7',
+                           'power_by_ma21',
+                           'power_by_ema',
+                           'power_by_avg',
+                           'power_by_block_ma7',
+                           'power_by_block_ma21'
+                           ]]
+
     clf = IsolationForest(n_estimators=10, warm_start=True)
     clf.fit(train_dataset)  # fit 10 trees
 
