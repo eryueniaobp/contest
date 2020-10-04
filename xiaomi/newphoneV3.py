@@ -566,6 +566,14 @@ def build_functional_complied_model_with_moe():
                                                        resident_city_type_input, phone_log_input, \
                                                        phone_raw_input, sale_channel_1_input, sale_channel_2_input)
 
+
+
+    """
+    base rate and app_rate  
+    """
+    base_rate = tf.keras.layers.Input(shape=(15, ), name='base_rate')
+    app_rate = tf.keras.layers.Input(shape=(406, ), name='app_rate')
+
     vitality_days = 30
     vitality_dimension = 10
     vitality_seq = tf.keras.layers.Input(shape=(vitality_days,), name='vatality')
@@ -646,7 +654,12 @@ def build_functional_complied_model_with_moe():
 
     fm_logits = FM()(fields_inputs)
 
-    fm_output = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)(fm_logits)
+    rate_s = tf.keras.layers.Concatenate()([base_rate, app_rate])
+    mlp_context = tf.keras.layers.Dense(32, activation='relu')(rate_s)
+    mlp_logits = tf.keras.layers.Dense(1, activation='relu')(mlp_context)
+    logits = tf.keras.layers.add([fm_logits, mlp_logits])
+
+    fm_output = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)(logits)
 
     """
     gate part 
@@ -672,7 +685,7 @@ def build_functional_complied_model_with_moe():
     model = tf.keras.models.Model(inputs=[
         brand_input, model_name_input, version_input, total_use_days_input, user_age_input, user_sex_input,
         user_degree_input, resident_province_input, resident_city_input, resident_city_type_input, phone_log_input,
-        phone_raw_input, sale_channel_1_input, sale_channel_2_input,
+        phone_raw_input, sale_channel_1_input, sale_channel_2_input,base_rate, app_rate,
         vitality_seq, app_all
     ], outputs=output, name='moe_model')
 
