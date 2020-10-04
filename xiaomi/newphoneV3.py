@@ -1,25 +1,28 @@
 # encoding=utf-8
-import  os
-os.environ['KMP_DUPLICATE_LIB_OK']='True'
-from typing import List
+import os
+
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 import tensorflow as tf
-
-import numpy as np
+import datetime
 import argparse
+import tensorflow_addons as tfa
+import tensorflow.keras.backend as K
+
+gpus = tf.config.experimental.list_physical_devices('GPU')
+if gpus:
+    try:
+        tf.config.experimental.set_memory_growth(gpus[0], True)
+    except RuntimeError as e:
+        print(e)
 
 
-
-import keras.backend as K
 class FM(tf.keras.layers.Layer):
     """Factorization Machine models pairwise (order-2) feature interactions
      without linear term and bias.
-
       Input shape
         - 3D tensor with shape: ``(batch_size,field_size,embedding_size)``.
-
       Output shape
         - 2D tensor with shape: ``(batch_size, 1)``.
-
       References
         - [Factorization Machines](https://www.csie.ntu.edu.tw/~b97053/paper/Rendle2010FM.pdf)
     """
@@ -51,7 +54,6 @@ class FM(tf.keras.layers.Layer):
         cross_term = 0.5 * tf.reduce_sum(cross_term, axis=2, keepdims=False)
 
         return cross_term
-
 
     def compute_output_shape(self, input_shape):
         return (None, 1)
@@ -91,6 +93,43 @@ class Constant:
     test_base_and_app_rate = "{}/test_base_and_app_rate/part-00000".format(prefix)
     train_file_path = "./data_store/train_data"
 
+
+def read_TFrecord(file_path):
+    feature_describe = {
+        "uid": tf.io.FixedLenFeature((1,), tf.string),
+        "label": tf.io.FixedLenFeature((1,), tf.int64),
+        "brand": tf.io.FixedLenFeature((1,), tf.int64),
+        "modelname": tf.io.FixedLenFeature((1,), tf.int64),
+        "version": tf.io.FixedLenFeature((1,), tf.int64),
+        "total_use_days": tf.io.FixedLenFeature((1,), tf.int64),
+        "user_age": tf.io.FixedLenFeature((1,), tf.int64),
+        "user_sex": tf.io.FixedLenFeature((1,), tf.int64),
+        "age": tf.io.FixedLenFeature((1,), tf.float32),
+        "user_degree": tf.io.FixedLenFeature((1,), tf.int64),
+        "resident_province": tf.io.FixedLenFeature((1,), tf.int64),
+        "resident_city": tf.io.FixedLenFeature((1,), tf.int64),
+        "resident_city_type": tf.io.FixedLenFeature((1,), tf.int64),
+        "phone_log_model": tf.io.FixedLenFeature((1,), tf.int64),
+        "phone_raw_model": tf.io.FixedLenFeature((1,), tf.int64),
+        "sale_channel_1": tf.io.FixedLenFeature((1,), tf.int64),
+        "sale_channel_2": tf.io.FixedLenFeature((1,), tf.int64),
+        "vatality": tf.io.FixedLenFeature((30,), tf.int64),
+        "app_rate": tf.io.FixedLenFeature((406,), tf.float32),
+        "base_rate": tf.io.FixedLenFeature((15,), tf.float32),
+        "app_count": tf.io.FixedLenFeature((1,), tf.int64),
+        "day_app_use_count": tf.io.FixedLenFeature((30,), tf.int64),
+        "app_caton_sum": tf.io.FixedLenFeature((4,), tf.float32),
+        "all_app_use_info": tf.io.FixedLenFeature((60,), tf.int64),
+        "all_app": tf.io.FixedLenFeature((30, 609), tf.float32)
+    }
+
+    def parse_tfrecord_line(x, feature_map):
+        _data = tf.io.parse_single_example(x, feature_describe)
+        label = _data.pop("label")
+        return _data, label
+
+    train_dataset = tf.data.TFRecordDataset(file_path).map(lambda x: parse_tfrecord_line(x, feature_describe))
+    return train_dataset
 
 
 def parse_train_base_and_app_rate(line):
@@ -295,27 +334,17 @@ def parse_train_base_and_app_rate(line):
          appid13, appid14, appid15, appid16, appid17, appid18, appid19, appid20, appid21, appid22, appid23, appid24,
          appid25, appid26, appid27, appid28, appid29][::-1], axis=0)
 
-    features['app_all'] = appid_count
+    features['all_app'] = appid_count
     labels = features.pop("label")
-    # features.pop("uid")
     return features, labels
 
 
-def build_dataset(files, infer=False):
-    train_size = int(0.7 * (Constant.positive_count + Constant.nagtive_count))
-    # validation_size = int(0.3 * (Constant.positive_count + Constant.nagtive_count))
+def build_dataset(files):
     file_paths = tf.data.Dataset.list_files(files)
     dataset = tf.data.TextLineDataset(file_paths)
-    if not infer:
-        # dataset = dataset.shuffle(buffer_size=1024)
-        dataset = dataset.map(lambda line: parse_train_base_and_app_rate(line))
-        # train_dataset = dataset.take(train_size)
-        # validation_dataset = dataset.skip(train_size)
-        return dataset
-    else:
-        return None
-        # dataset = dataset.map(lambda line: parse_test_base_and_app_rate(line))
-        # return dataset
+    dataset = dataset.map(lambda line: parse_train_base_and_app_rate(line))
+    return dataset
+
 
 def build_functional_complied_model_with_cnn():
     brand_input, model_name_input, version_input, total_use_days_input, user_age_input, user_sex_input, \
@@ -338,29 +367,20 @@ def build_functional_complied_model_with_cnn():
     vitality_seq = tf.keras.layers.Input(shape=(vitality_days,), name='vatality')
     # shape  : (batch, vitality_days, 10 )
     embedding_vitality = tf.keras.layers.Embedding(3, vitality_dimension)(vitality_seq)
-    # vitality_context_value = tf.keras.layers.LSTM(units=32, return_sequences=False, return_state=False)(embedding_vitality)
-
-    vitality_conv1d = tf.keras.layers.Conv1D(filters=32, kernel_size=3, activation='relu', input_shape=(vitality_days, vitality_dimension))(embedding_vitality)
+    vitality_conv1d = tf.keras.layers.Conv1D(filters=32, kernel_size=3, activation='relu',
+                                             input_shape=(vitality_days, vitality_dimension))(embedding_vitality)
     vitality_pooling = tf.keras.layers.MaxPooling1D(pool_size=2, strides=1, padding='valid')(vitality_conv1d)
     vitality_context_value = tf.keras.layers.Flatten()(vitality_pooling)
-
-
-
-
 
     appid_size = 203
     days = 30
     app_dimension = appid_size * 3
     # 30: 30 days
-    app_all = tf.keras.layers.Input(shape=(days, app_dimension), name='app_all')
-
+    app_all = tf.keras.layers.Input(shape=(days, app_dimension), name='all_app')
     appid_conv1d = tf.keras.layers.Conv1D(filters=32, kernel_size=3, activation='relu',
-                                             input_shape=(days, app_dimension ))(app_all)
-
+                                          input_shape=(days, app_dimension))(app_all)
     appid_pooling = tf.keras.layers.MaxPooling1D(pool_size=2, strides=1, padding='valid')(appid_conv1d)
     appid_context_value = tf.keras.layers.Flatten()(appid_pooling)
-
-
 
     context = tf.keras.layers.concatenate([
         brand_flatten, model_name_flatten, version_flatten,
@@ -371,7 +391,8 @@ def build_functional_complied_model_with_cnn():
         total_use_days_input_flatten,
         appid_context_value, vitality_context_value], name='cnn_context_layer')
 
-    fusion_context = tf.keras.layers.Dense(32, activation='relu', name='context_layer')(context)
+    full_fusion_context = tf.keras.layers.Dense(32, activation='relu', name='context_layer')(context)
+    fusion_context = tf.keras.layers.Dropout(0.2)(full_fusion_context)
     output = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)(fusion_context)
 
     model = tf.keras.models.Model(inputs=[
@@ -379,13 +400,19 @@ def build_functional_complied_model_with_cnn():
         user_degree_input, resident_province_input, resident_city_input, resident_city_type_input, phone_log_input,
         phone_raw_input, sale_channel_1_input, sale_channel_2_input,
         vitality_seq, app_all
-    ], outputs=[output], name = 'cnn_phone')
-    model.compile(loss='binary_crossentropy', optimizer='adam',
-                  metrics=['accuracy', tf.keras.metrics.Precision(), tf.keras.metrics.Recall(),
-                           tf.keras.metrics.AUC()])
+    ], outputs=[output], name='cnn_phone')
+    model.compile(loss='binary_crossentropy', optimizer='adam', metrics=[
+        'accuracy',
+        tf.keras.metrics.Precision(),
+        tf.keras.metrics.Recall(),
+        tf.keras.metrics.AUC(),
+        tfa.metrics.F1Score(num_classes=1, threshold=0.5)
+    ])
     model.summary()
 
     return model
+
+
 def build_base_input():
     brand_input = tf.keras.Input(shape=(1,), name="brand")
     model_name_input = tf.keras.Input(shape=(1,), name="modelname")
@@ -403,13 +430,15 @@ def build_base_input():
     sale_channel_1_input = tf.keras.Input(shape=(1,), name="sale_channel_1")
     sale_channel_2_input = tf.keras.Input(shape=(1,), name="sale_channel_2")
     return brand_input, model_name_input, version_input, total_use_days_input, user_age_input, user_sex_input, \
-        user_degree_input, resident_province_input, resident_city_input, resident_city_type_input, phone_log_input , \
-        phone_raw_input, sale_channel_1_input, sale_channel_2_input
+           user_degree_input, resident_province_input, resident_city_input, resident_city_type_input, phone_log_input, \
+           phone_raw_input, sale_channel_1_input, sale_channel_2_input
 
-def build_base_features(brand_input, model_name_input, version_input, total_use_days_input, user_age_input, user_sex_input,
-        user_degree_input, resident_province_input, resident_city_input, resident_city_type_input, phone_log_input,
-        phone_raw_input, sale_channel_1_input, sale_channel_2_input):
 
+def build_base_features(brand_input, model_name_input, version_input, total_use_days_input, user_age_input,
+                        user_sex_input,
+                        user_degree_input, resident_province_input, resident_city_input, resident_city_type_input,
+                        phone_log_input,
+                        phone_raw_input, sale_channel_1_input, sale_channel_2_input):
     brand_embedding = tf.keras.layers.Embedding(Constant.brand_count, 10)(brand_input)
     model_name_embedding = tf.keras.layers.Embedding(Constant.model_name_count, 10)(model_name_input)
     version_embedding = tf.keras.layers.Embedding(Constant.version_count, 10)(version_input)
@@ -444,11 +473,12 @@ def build_base_features(brand_input, model_name_input, version_input, total_use_
     total_use_days_input_flatten = tf.keras.layers.Flatten()(total_use_days_input_embedding)
 
     return brand_flatten, model_name_flatten, version_flatten, \
-        total_use_days_input, user_age_flatten, user_sex_flatten,  \
-        user_degree_flatten, resident_province_flatten, resident_city_flatten, resident_city_type_flatten, \
-        phone_log_flatten, \
-        phone_raw_flatten, sale_channel_1_flatten, sale_channel_2_flatten, \
-        total_use_days_input_flatten
+           total_use_days_input, user_age_flatten, user_sex_flatten, \
+           user_degree_flatten, resident_province_flatten, resident_city_flatten, resident_city_type_flatten, \
+           phone_log_flatten, \
+           phone_raw_flatten, sale_channel_1_flatten, sale_channel_2_flatten, \
+           total_use_days_input_flatten
+
 
 def build_functional_complied_model_with_lstm():
     """
@@ -461,31 +491,31 @@ def build_functional_complied_model_with_lstm():
     user_degree_input, resident_province_input, resident_city_input, resident_city_type_input, phone_log_input, \
     phone_raw_input, sale_channel_1_input, sale_channel_2_input = build_base_input()
 
-
     brand_flatten, model_name_flatten, version_flatten, \
     total_use_days_input, user_age_flatten, user_sex_flatten, \
     user_degree_flatten, resident_province_flatten, resident_city_flatten, resident_city_type_flatten, \
     phone_log_flatten, \
     phone_raw_flatten, sale_channel_1_flatten, sale_channel_2_flatten, \
-    total_use_days_input_flatten = build_base_features(brand_input, model_name_input, version_input, total_use_days_input, user_age_input, user_sex_input, \
-    user_degree_input, resident_province_input, resident_city_input, resident_city_type_input, phone_log_input, \
-    phone_raw_input, sale_channel_1_input, sale_channel_2_input)
+    total_use_days_input_flatten = build_base_features(brand_input, model_name_input, version_input,
+                                                       total_use_days_input, user_age_input, user_sex_input, \
+                                                       user_degree_input, resident_province_input, resident_city_input,
+                                                       resident_city_type_input, phone_log_input, \
+                                                       phone_raw_input, sale_channel_1_input, sale_channel_2_input)
 
     vitality_days = 30
-    vitality_seq = tf.keras.layers.Input(shape=(vitality_days, ), name='vatality')
+    vitality_seq = tf.keras.layers.Input(shape=(vitality_days,), name='vatality')
     # shape  : (batch, vitality_days, 10 )
     embedding_vitality = tf.keras.layers.Embedding(3, 10)(vitality_seq)
-    vitality_context_value = tf.keras.layers.LSTM(units=32, return_sequences=False, return_state=False)(
+    vitality_context_value = tf.keras.layers.LSTM(units=32, dropout=0.2, recurrent_dropout=0.2, return_sequences=False, return_state=False)(
         embedding_vitality)
-
 
     appid_size = 203
     days = 30
     # 30: 30 days
-    app_all = tf.keras.layers.Input(shape=(days, appid_size * 3 ), name='app_all')
+    app_all = tf.keras.layers.Input(shape=(days, appid_size * 3), name='all_app')
 
-    #output shape: (batch,  units=100)
-    appid_context_value = tf.keras.layers.LSTM(units=32, return_sequences=False, return_state=False)(app_all)
+    # output shape: (batch,  units=100)
+    appid_context_value = tf.keras.layers.LSTM(units=32, dropout=0.2, recurrent_dropout=0.2, return_sequences=False, return_state=False)(app_all)
 
     context = tf.keras.layers.concatenate([
         brand_flatten, model_name_flatten, version_flatten,
@@ -497,45 +527,28 @@ def build_functional_complied_model_with_lstm():
         appid_context_value, vitality_context_value], name='lstm_context_layer')
 
     fusion_context = tf.keras.layers.Dense(32, activation='relu', name='context_layer')(context)
-    dnn_logits = tf.keras.layers.Dense(1, activation='relu')(fusion_context)
+    # dnn_logits = tf.keras.layers.Dense(1, activation='relu')(fusion_context)
 
-    """
-    FM begins
-    """
-    fm_model_embedding = tf.keras.layers.Embedding(Constant.model_name_count, 10)(model_name_input)
-    fm_city_embedding = tf.keras.layers.Embedding(Constant.resident_city_count, 10)(resident_city_input)
-    fm_total_use_days_input_embedding = tf.keras.layers.Embedding(5000, 10)(total_use_days_input)
-    fm_brand_embedding = tf.keras.layers.Embedding(Constant.brand_count, 10)(brand_input)
 
-    fm_user_age_embedding = tf.keras.layers.Embedding(Constant.user_age_count, 10)(user_age_input)
-    fm_user_sex_embedding = tf.keras.layers.Embedding(Constant.user_sex_count, 10)(user_sex_input)
-    fm_user_degree_embedding = tf.keras.layers.Embedding(Constant.user_degree_count, 10)(user_degree_input)
-
-    fields_inputs = tf.keras.layers.Concatenate(axis=1)([fm_user_age_embedding,
-                                                         fm_user_sex_embedding,
-                                                         fm_user_degree_embedding,
-                                                         fm_brand_embedding,
-                                                         fm_model_embedding,
-                                                         fm_city_embedding,
-                                                         fm_total_use_days_input_embedding])
-    tf.print(fields_inputs.shape)
-    fm_logits = FM()(fields_inputs)
-    """
-    FM ends
-    """
-    logits = tf.keras.layers.add([dnn_logits, fm_logits])
-    output = tf.keras.layers.Dense(1, activation='sigmoid')(logits)
+    # logits = tf.keras.layers.add([dnn_logits, fm_logits])
+    output = tf.keras.layers.Dense(1, activation='sigmoid')(fusion_context)
 
     model = tf.keras.models.Model(inputs=[
         brand_input, model_name_input, version_input, total_use_days_input, user_age_input, user_sex_input,
         user_degree_input, resident_province_input, resident_city_input, resident_city_type_input, phone_log_input,
         phone_raw_input, sale_channel_1_input, sale_channel_2_input,
-        vitality_seq,  app_all
+        vitality_seq, app_all
     ], outputs=[output], name='phone_lstm')
-    model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy', tf.keras.metrics.Precision(), tf.keras.metrics.Recall(), tf.keras.metrics.AUC()])
+    model.compile(loss='binary_crossentropy', optimizer='adam', metrics=[
+        'accuracy',
+        tf.keras.metrics.Precision(),
+        tf.keras.metrics.Recall(),
+        tf.keras.metrics.AUC(),
+        tfa.metrics.F1Score(num_classes=1, threshold=0.5)
+    ])
     model.summary()
-
     return model
+
 
 def build_functional_complied_model_with_moe():
     brand_input, model_name_input, version_input, total_use_days_input, user_age_input, user_sex_input, \
@@ -553,32 +566,25 @@ def build_functional_complied_model_with_moe():
                                                        resident_city_type_input, phone_log_input, \
                                                        phone_raw_input, sale_channel_1_input, sale_channel_2_input)
 
-
-
-
-
-
     vitality_days = 30
     vitality_dimension = 10
     vitality_seq = tf.keras.layers.Input(shape=(vitality_days,), name='vatality')
     # shape  : (batch, vitality_days, 10 )
-    embedding_vitality = tf.keras.layers.Embedding(3, vitality_dimension)(vitality_seq)
-
+    lstm_embedding_vitality = tf.keras.layers.Embedding(3, vitality_dimension)(vitality_seq)
+    cnn_embedding_vitality = tf.keras.layers.Embedding(3, vitality_dimension)(vitality_seq)
 
 
     appid_size = 203
     days = 30
     app_dimension = appid_size * 3
-
-    # 30: 30 days
-    app_all = tf.keras.layers.Input(shape=(days,app_dimension), name='app_all')
+    app_all = tf.keras.layers.Input(shape=(days, app_dimension), name='all_app')
 
     """ lstm part """
     vitality_context_value = tf.keras.layers.LSTM(units=32, return_sequences=False, return_state=False)(
-        embedding_vitality)
+        lstm_embedding_vitality)
 
     # output shape: (batch,  units=100)
-    appid_context_value = tf.keras.layers.LSTM(units=32, return_sequences=False, return_state=False)(app_all)
+    appid_context_value = tf.keras.layers.LSTM(units=32, dropout=0.2, recurrent_dropout=0.2, return_sequences=False, return_state=False)(app_all)
 
     context = tf.keras.layers.concatenate([
         brand_flatten, model_name_flatten, version_flatten,
@@ -591,12 +597,10 @@ def build_functional_complied_model_with_moe():
 
     lstm_fusion_context = tf.keras.layers.Dense(32, activation='relu', name='lstm_fusion_layer')(context)
 
-
-
     """cnn part """
 
     vitality_conv1d = tf.keras.layers.Conv1D(filters=32, kernel_size=3, activation='relu',
-                                             input_shape=(vitality_days, vitality_dimension))(embedding_vitality)
+                                             input_shape=(vitality_days, vitality_dimension))(cnn_embedding_vitality)
     vitality_pooling = tf.keras.layers.MaxPooling1D(pool_size=2, strides=1, padding='valid')(vitality_conv1d)
     vitality_context_value = tf.keras.layers.Flatten()(vitality_pooling)
 
@@ -615,14 +619,38 @@ def build_functional_complied_model_with_moe():
         total_use_days_input_flatten,
         appid_context_value, vitality_context_value], name='cnn_context_layer')
 
-    cnn_fusion_context = tf.keras.layers.Dense(32, activation='relu', name='cnn_fusion_context')(context)
+    full_cnn_fusion_context = tf.keras.layers.Dense(32, activation='relu', name='cnn_fusion_context')(context)
+    cnn_fusion_context = tf.keras.layers.Dropout(0.2)(full_cnn_fusion_context)
 
     cnn_output = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)(cnn_fusion_context)
     lstm_output = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)(lstm_fusion_context)
 
+    """FM part """
 
-    # gate_context = tf.keras.layers.concatenate([lstm_fusion_context, cnn_fusion_context], name='moe_context')
+    fm_model_embedding = tf.keras.layers.Embedding(Constant.model_name_count, 10)(model_name_input)
+    fm_city_embedding = tf.keras.layers.Embedding(Constant.resident_city_count, 10)(resident_city_input)
+    fm_total_use_days_input_embedding = tf.keras.layers.Embedding(5000, 10)(total_use_days_input)
+    fm_brand_embedding = tf.keras.layers.Embedding(Constant.brand_count, 10)(brand_input)
 
+    fm_user_age_embedding = tf.keras.layers.Embedding(Constant.user_age_count, 10)(user_age_input)
+    fm_user_sex_embedding = tf.keras.layers.Embedding(Constant.user_sex_count, 10)(user_sex_input)
+    fm_user_degree_embedding = tf.keras.layers.Embedding(Constant.user_degree_count, 10)(user_degree_input)
+
+    fields_inputs = tf.keras.layers.Concatenate(axis=1)([fm_user_age_embedding,
+                                                         fm_user_sex_embedding,
+                                                         fm_user_degree_embedding,
+                                                         fm_brand_embedding,
+                                                         fm_model_embedding,
+                                                         fm_city_embedding,
+                                                         fm_total_use_days_input_embedding])
+
+    fm_logits = FM()(fields_inputs)
+
+    fm_output = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)(fm_logits)
+
+    """
+    gate part 
+    """
     gate_context = tf.keras.layers.concatenate([
         brand_flatten, model_name_flatten, version_flatten,
         total_use_days_input, user_age_flatten, user_sex_flatten,
@@ -630,39 +658,40 @@ def build_functional_complied_model_with_moe():
         phone_log_flatten,
         phone_raw_flatten, sale_channel_1_flatten, sale_channel_2_flatten,
         total_use_days_input_flatten], name='gate_context')
-    gate = tf.keras.layers.Dense(2, 'softmax')(gate_context)
+    gate = tf.keras.layers.Dense(3, 'softmax')(gate_context)
 
     def merge_mode(branches):
-        g, o1, o2 = branches
+        g, o1, o2, o3 = branches
         # I'd have liked to write
         # return o1 * K.transpose(g[:, 0]) + o2 * K.transpose(g[:, 1])
         # but it doesn't work, and I don't know enough Keras to solve it
-        return tf.transpose(tf.transpose(o1) * g[:, 0] + tf.transpose(o2) * g[:, 1])
+        return tf.transpose(tf.transpose(o1) * g[:, 0] + tf.transpose(o2) * g[:, 1] +  tf.transpose(o3) * g[:, 2])
 
-    output = merge_mode((gate, lstm_output, cnn_output))
+    output = merge_mode((gate, lstm_output, cnn_output, fm_output))
 
     model = tf.keras.models.Model(inputs=[
         brand_input, model_name_input, version_input, total_use_days_input, user_age_input, user_sex_input,
         user_degree_input, resident_province_input, resident_city_input, resident_city_type_input, phone_log_input,
         phone_raw_input, sale_channel_1_input, sale_channel_2_input,
         vitality_seq, app_all
-    ], outputs= output, name='moe_model')
+    ], outputs=output, name='moe_model')
 
     model.compile(loss='binary_crossentropy', optimizer='adam',
-                  metrics=['accuracy', tf.keras.metrics.Precision(), tf.keras.metrics.Recall(),
-                           tf.keras.metrics.AUC()])
+                  metrics=['accuracy',
+                           tf.keras.metrics.Precision(),
+                           tf.keras.metrics.Recall(),
+                           tf.keras.metrics.AUC(),
+                           tfa.metrics.F1Score(num_classes=1, threshold=0.5)
+                           ])
     model.summary()
     return model
-
-
-
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     subparser = parser.add_subparsers(dest='task')
     trainparser = subparser.add_parser('train')
-    trainparser.add_argument('--model', choices=['lstm', 'cnn','moe'], required=True)
+    trainparser.add_argument('--model', choices=['lstm', 'cnn', 'moe'], required=True)
 
     testparser = subparser.add_parser('test')
     testparser.add_argument('--model', choices=['lstm', 'cnn', 'moe'], required=True)
@@ -684,31 +713,26 @@ if __name__ == '__main__':
 
         else:
             raise NotImplementedError('check your model')
-
-        # dataset = build_dataset()
-        train_dataset = build_dataset("./train_data")
-        valid_dataset = build_dataset("./valid_data")
-        # dataset = dataset.shuffle(buffer_size=1024).padded_batch(1, padded_shapes=({'appid': 4 }, None))
+        # train_dataset = build_dataset("./data_store/train_data")
+        # valid_dataset = build_dataset("./data_store/valid_data")
+        train_dataset = read_TFrecord("./data_store/train_data.tfrecords")
+        valid_dataset = read_TFrecord("./data_store/valid_data.tfrecords")
         dataset = train_dataset.shuffle(buffer_size=1024).prefetch(tf.data.experimental.AUTOTUNE).batch(256).repeat()
         valid_dataset = valid_dataset.batch(64)
-        # for x in dataset.take(4):
-        #     print(x)
-        # model.fit({'feature': X, 'feature2': X2}, y, batch_size=20, epochs=2)
-
         model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
             filepath=model_path,
             save_weights_only=True,
-            monitor='loss',
-            mode='min',
+            monitor='val_f1_score',
+            mode='max',
             save_best_only=True)
-        import datetime
+
         ts = datetime.datetime.now().isoformat()
         csvlogger = tf.keras.callbacks.CSVLogger(filename=csvfile)
 
         class_weight = {1: Constant.nagtive_count / Constant.positive_count, 0: 1.0}
         model.fit(dataset, validation_data=valid_dataset,
-                  class_weight= class_weight,
-                  steps_per_epoch=1000, epochs=10, callbacks=[model_checkpoint_callback, csvlogger])
+                  class_weight=class_weight,
+                  steps_per_epoch=1000, epochs=100, callbacks=[model_checkpoint_callback, csvlogger])
     else:
         if args.model == 'lstm':
             model = build_functional_complied_model_with_lstm()
@@ -728,21 +752,16 @@ if __name__ == '__main__':
         else:
             raise NotImplementedError('check your model')
         model.load_weights(model_path)
-        test_dataset = build_dataset("./test_data.ok")
-        of = open(submit,'w')
+        # test_dataset = build_dataset("./data_store/test_data.csv")
+        test_dataset = read_TFrecord("./data_store/test_data.tfrecords")
+        of = open(submit, 'w')
         of.write('uid,label\n')
         test_dataset = test_dataset.batch(64)
         buf = []
-        for x, _  in test_dataset:
-            # print(x)
+        for x, _ in test_dataset:
             y = model.predict(x)[:, 0]
-            print(y)
-
             buf = list(zip(x['uid'].numpy(), y))
-            buf = ['{},{}\n'.format(int(i), 1 if j >0.5 else 0) for i ,j in buf]
+            buf = ['{},{}\n'.format(int(i), 1 if j > 0.5 else 0) for i, j in buf]
             of.writelines(buf)
-            # # print(len(y))
-            # print('=====' * 8 )
-            # input("press any  key..")
         of.flush()
         of.close()
