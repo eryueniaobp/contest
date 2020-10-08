@@ -5,8 +5,40 @@ import xgboost as xgb
 import logging
 import re
 import tensorflow as tf
-from newphoneCNN import build_xgb_nn_model
+import tensorflow_addons as tfa
 
+
+def build_xgb_nn_model(tree_num=10):
+    """
+    use xgb leaf features inside.
+    To have a different model space in moe, just use xgb leaf features here.
+    :return:
+    """
+    inputs = []
+
+    embeddings = []
+    for i in range(tree_num):
+        inputs.append(tf.keras.Input(shape=(1,), name="tree_" + str(i)))
+        embeddings.append(
+            tf.keras.layers.Embedding(128, 32)(inputs[-1])
+        )
+    # leaf = tf.keras.Input(shape=(10,), name="tree_leaf")
+    # inputs.append(leaf)
+    leaf_context = tf.keras.layers.concatenate(embeddings, axis=-1)
+    flatten_context = tf.keras.layers.Flatten()(leaf_context)
+    fusion_context = tf.keras.layers.Dense(32, 'relu')(flatten_context)
+    output = tf.keras.layers.Dense(1, 'sigmoid')(fusion_context)
+
+    model = tf.keras.models.Model(inputs=inputs, outputs=[output], name='xgb_nn')
+    model.compile(loss='binary_crossentropy', optimizer='adam', metrics=[
+        'accuracy',
+        tf.keras.metrics.Precision(),
+        tf.keras.metrics.Recall(),
+        tf.keras.metrics.AUC(),
+        tfa.metrics.F1Score(num_classes=1, threshold=0.5)
+    ])
+    model.summary()
+    return model
 class XGBLeafDataSource(object):
     """
     read the files and parse out the "app_rate" feature and use the xgb to get the leafs.
