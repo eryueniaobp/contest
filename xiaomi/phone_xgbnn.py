@@ -70,7 +70,9 @@ class XGBLeafDataSource(object):
         s, e = self.span
         while True:
             # print(k)
-            if k == epoch: break
+            if k == epoch:
+                # k = 0
+                break
             k += 1
 
             with open(self.path, 'r') as f:
@@ -111,9 +113,21 @@ def xgbnn_train():
     phone_source = XGBLeafDataSource(train_path, batch_size, (47, 453))
     valid_phone_source = XGBLeafDataSource(valid_path, batch_size, (47, 453))
 
+    model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
+        filepath=model_path,
+        save_weights_only=True,
+        monitor='val_f1_score',
+        mode='max',
+        save_best_only=True)
+
+    csvlogger = tf.keras.callbacks.CSVLogger(filename=csvfile)
+
     model.fit(phone_source.iter(),
-              validation_data=valid_phone_source.iter(1),
-              steps_per_epoch=100, epochs=20)
+              validation_data=valid_phone_source.iter(),
+              steps_per_epoch=100, epochs=20,
+              validation_steps=20,
+              callbacks=[model_checkpoint_callback,csvlogger ]
+              )
     model.save_weights(model_path)
 
 def main():
@@ -123,7 +137,7 @@ def main():
     batch_size = 10
     phone_source = XGBLeafDataSource(train_path, batch_size, (47, 453))
 
-    for leafs in phone_source.iter():
+    for leafs in phone_source.iter(1):
         # pass
         # leafs = xgbclf.apply(features['app_rate'])
         print(type(leafs))
