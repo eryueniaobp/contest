@@ -128,7 +128,7 @@ def xgbnn_train():
               validation_steps=20,
               callbacks=[model_checkpoint_callback,csvlogger ]
               )
-    model.save_weights(model_path)
+#     model.save_weights(model_path)
 
 def main():
     train_path = "./data_store/train_data"
