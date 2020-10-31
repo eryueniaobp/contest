@@ -79,7 +79,10 @@ def sample_from_simple_anns(entity_type, simple_anns):
 
 
 
-def augment_data(txt_path, ann_path, output_path, augment_rate=0.3, shuffle_segment_rate=0.4):
+def augment_data(txt_path, ann_path, output_path,
+                augment_rate=0.3,
+                shuffle_segment_rate=0.4,
+                epochs=10):
 
     os.makedirs(output_path, exist_ok=True)
 
@@ -102,71 +105,72 @@ def augment_data(txt_path, ann_path, output_path, augment_rate=0.3, shuffle_segm
     #     pass
     # input('Press')
 
-    sample_cnt = 0
-    for annfile, txtfile in tqdm(zip(anns, txts)):
-        # print(annfile, txtfile)
-        annbuf = get_anns(annfile)
-        txt    = get_txt(txtfile)
+    for i in range(epochs):
+        print('epochs = {} , last_num = {}'.format(i, last_num))
+        for annfile, txtfile in tqdm(zip(anns, txts)):
+            # print(annfile, txtfile)
+            annbuf = get_anns(annfile)
+            txt    = get_txt(txtfile)
 
-        incr = [0]
+            incr = [0]
 
-        new_annbuf = []
-        for ann in annbuf: #type: ANN
-            if rng.random() < augment_rate:
-                if rng.random() < shuffle_segment_rate:
-                    """
-                    shuffle inside. 
-                    """
-                    span = list(ann.span)
-                    np.random.shuffle(span)
-                    new_span = ''.join(span)
+            new_annbuf = []
+            for ann in annbuf: #type: ANN
+                if rng.random() < augment_rate:
+                    if rng.random() < shuffle_segment_rate:
+                        """
+                        shuffle inside. 
+                        """
+                        span = list(ann.span)
+                        np.random.shuffle(span)
+                        new_span = ''.join(span)
 
-                    # print(new_span, ann.span)
-                    # input("Press nay ")
-                    new_annbuf.append(ann._replace(span=new_span))
-                    incr.append(incr[-1])
+                        # print(new_span, ann.span)
+                        # input("Press nay ")
+                        new_annbuf.append(ann._replace(span=new_span))
+                        incr.append(incr[-1])
+                    else:
+
+                        new_simple_ann = sample_from_simple_anns(ann.entity_type, simple_anns)
+
+                        new_annbuf.append(ann._replace(span=new_simple_ann.span))
+                        diff = len(new_simple_ann.span)  - len(ann.span)
+                        incr.append(incr[-1] + diff)
                 else:
+                    incr.append(incr[-1])
+                    new_annbuf.append(ann._replace())
+            # correction  by incr idx
 
-                    new_simple_ann = sample_from_simple_anns(ann.entity_type, simple_anns)
+            # print(annfile, incr[1:])
+            # k = 0
+            # for x, y in zip(annbuf, new_annbuf):
+            #     print(x, y , incr[1:][k])
+            #     k +=  1
+            # print(new_annbuf)
+            prev = 0
 
-                    new_annbuf.append(ann._replace(span=new_simple_ann.span))
-                    diff = len(new_simple_ann.span)  - len(ann.span)
-                    incr.append(incr[-1] + diff)
-            else:
-                incr.append(incr[-1])
-                new_annbuf.append(ann._replace())
-        # correction  by incr idx
+            buf2 = []
+            for newann, incrdiff in zip(new_annbuf, incr[1:]):
 
-        # print(annfile, incr[1:])
-        # k = 0
-        # for x, y in zip(annbuf, new_annbuf):
-        #     print(x, y , incr[1:][k])
-        #     k +=  1
-        # print(new_annbuf)
-        prev = 0
+                s = newann.s + prev
+                e = newann.e + incrdiff
+                buf2.append(newann._replace(s=s, e = e  ))
+                prev = incrdiff
 
-        buf2 = []
-        for newann, incrdiff in zip(new_annbuf, incr[1:]):
+            new_annbuf = buf2
 
-            s = newann.s + prev
-            e = newann.e + incrdiff
-            buf2.append(newann._replace(s=s, e = e  ))
-            prev = incrdiff
+            # correction txgt .
+            sbuf = []
+            p = 0
+            for newann, ann in zip(new_annbuf, annbuf):
+                sbuf  += txt[p:ann.s]
+                sbuf += newann.span
+                p = ann.e
 
-        new_annbuf = buf2
+            newtxt = ''.join(sbuf)
 
-        # correction txgt .
-        sbuf = []
-        p = 0
-        for newann, ann in zip(new_annbuf, annbuf):
-            sbuf  += txt[p:ann.s]
-            sbuf += newann.span
-            p = ann.e
-
-        newtxt = ''.join(sbuf)
-
-        last_num += 1
-        save_it(newtxt, new_annbuf,'{}/{}'.format(output_path, last_num))
+            last_num += 1
+            save_it(newtxt, new_annbuf,'{}/{}'.format(output_path, last_num))
 
 
 def check_ann(txt, anns):
@@ -186,5 +190,7 @@ def save_it(txt, anns, prefix):
 if __name__ == '__main__':
     ann_path, txt_path = './data/train/*.ann', './data/train/*.txt'
     output_path = './data/train_ext'
-    augment_data(txt_path, ann_path, output_path, augment_rate=0.3, shuffle_segment_rate=0.4)
+    augment_data(txt_path, ann_path, output_path,
+                 augment_rate=0.3,
+                 shuffle_segment_rate=0.4)
     pass
