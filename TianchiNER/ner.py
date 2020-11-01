@@ -188,7 +188,7 @@ def train_it2(train_path, checkpoint_filepath, model_path, start, span):
     #     save_best_only=True)
     #train_x, train_y = train_x[:1000], train_y[:1000]
     #valid_x, valid_y = valid_x[:200], valid_y[:200]
-
+    
     model = BiLSTM_CRF_Model(bert_embed, sequence_length=128)
     eval_callback = Evaluator(model, checkpoint_filepath, valid_x, valid_y)
     early_stop = keras.callbacks.EarlyStopping(patience=10)
@@ -198,7 +198,7 @@ def train_it2(train_path, checkpoint_filepath, model_path, start, span):
     #                              y_data=valid_y,
     #                              step=1)
 
-    model.fit(train_x, train_y, valid_x, valid_y, batch_size=64, epochs=100,
+    model.fit(train_x, train_y, valid_x, valid_y, batch_size=64, epochs=20,
               callbacks=[early_stop, eval_callback, reduse_lr_callback])
     model.save(model_path)
 
