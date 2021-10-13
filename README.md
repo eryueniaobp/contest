@@ -40,6 +40,7 @@ NN 耗费资源，单NN效果可能略好于调好的 gbdt； relu造成节点�
 
 spark.read.csv() 
 write.parquet()  
+> parquet 在windows下无法跑，需要额外的配置；在spark/hadoop集群环境可跑
 
 collect_set()  之后 row.getAs[mutable.WrappedArray[String]](field_name)取出 
 
@@ -51,12 +52,12 @@ Window.partitionBy().orderBy().rangeBetween(left, Window.currentRow)  取到当�
 存储uid对应的所有 历史id值，  id:timestamp; 直接join到 dataframe中
 ItemInfo(id, name, category, ....) ， iteminfo通常可载入内存 
 
-后续处理时，依据 history_timestamp 与当前timestamp 找出时间窗 ,构造特征. 
+后续处理时，*依据 history_timestamp 与当前timestamp 找出时间窗 ,构造特征. *
 
 
 ### spark 写TFRecord, 方便tensorflow训练
-``
-   val example = buildExample(row)
+```
+   df.rdd.map(row => {val example = buildExample(row)
             (new BytesWritable(example.toByteArray), NullWritable.get())
           })
             .coalesce(10)
@@ -67,7 +68,7 @@ ItemInfo(id, name, category, ....) ， iteminfo通常可载入内存
               classOf[TFRecordFileOutputFormat],
               sc.hadoopConfiguration
               ) 
-``
+```
 
 
 
