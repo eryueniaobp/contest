@@ -55,7 +55,7 @@ ItemInfo(id, name, category, ....) ， iteminfo通常可载入内存
 
 
 ### spark 写TFRecord, 方便tensorflow训练
-
+``
    val example = buildExample(row)
             (new BytesWritable(example.toByteArray), NullWritable.get())
           })
@@ -67,7 +67,7 @@ ItemInfo(id, name, category, ....) ， iteminfo通常可载入内存
               classOf[TFRecordFileOutputFormat],
               sc.hadoopConfiguration
               ) 
-            
+``
 
 
 
