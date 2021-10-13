@@ -1,6 +1,7 @@
 # contest
 ## 流程
-特征工程： 交叉特征 + 统计比率 + 实时list特征 + 兴趣比例特征
+特征工程： 交叉特征 + 统计比率 + 实时list特征 + 兴趣比例特征  + match特征
+
 *baseline*: 交叉特征 + 统计比率 + gbdt   
 单模型调优:    
 模型融合:  stacking 4-folds .    
@@ -69,6 +70,11 @@ ItemInfo(id, name, category, ....) ， iteminfo通常可载入内存
               sc.hadoopConfiguration
               ) 
 ```
+
+##  tensorflow训练要点 
+- early_stopping
+- decay learning rate (LearningRateScheduler) 
+- Best Export 
 
 
 
