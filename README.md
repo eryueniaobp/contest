@@ -32,6 +32,9 @@ NN 耗费资源，单NN效果可能略好于调好的 gbdt； relu造成节点�
 
 特征工程做不扎实，直接影响后续的 模型效果 
 
+## scikit feature 支持
+DictVectorizer可直接onehot 
+
 ### 难点
 
 各项维度的 统计均值  是工程难点 
@@ -77,5 +80,8 @@ ItemInfo(id, name, category, ....) ， iteminfo通常可载入内存
 - Best Export 
 
 
+## GBDT /  NN 
 
+赛题数据规模大，则NN占优
+赛题数据规模小，最好是GBDT和NN都做一份
 
