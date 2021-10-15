@@ -3,6 +3,8 @@
 特征工程： 交叉特征 + 统计比率 + 实时list特征 + 兴趣比例特征  + match特征
 
 *baseline*: 交叉特征 + 统计比率 + gbdt   
+
+异常值特征:  利用IsolationTree等找出异常值，标定为特征；该类特征在某些问题中是有效的. 
 单模型调优:    
 模型融合:  stacking 4-folds .    
 
