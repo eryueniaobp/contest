@@ -89,5 +89,8 @@ ItemInfo(id, name, category, ....) ， iteminfo通常可载入内存
 ## GBDT /  NN 
 
 赛题数据规模大，则NN占优
-赛题数据规模小，最好是GBDT和NN都做一份
+赛题数据规模小，最好是GBDT和NN都做一份 
+
+#单独App Retention类问题的特征构建
+- 状态转移序列 直接当特征用  s1:s2:s3..:sn直接当特征 
 
