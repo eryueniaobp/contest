@@ -64,6 +64,14 @@ ItemInfo(id, name, category, ....) ， iteminfo通常可载入内存
 
 后续处理时，*依据 history_timestamp 与当前timestamp 找出时间窗 ,构造特征. *
 
+- 多时间窗
+- 每个窗口内进行Rank/Count/Match/Rate(match_rate)等，可以对泛化特征也这么做
+- 设定K类，每个类填充对应的idlist 等信息，再适用attn(current_item, (category_list_1, category_list_2, ...category_list_k)) 进行处理 
+
+## 常规统计特征处理
+单维度统计
+组合维度统计
+统计值采用 二维离散化处理
 
 ### spark 写TFRecord, 方便tensorflow训练
 ```
